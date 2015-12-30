@@ -487,11 +487,11 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
     uint8_t expected_boundary_end_len = 0;
     int tx_progress = 0;
 
-#ifdef ZPRINT
-    zPRINT("CHUNK START");
+//#ifdef ZPRINT
+    zLogDebug("CHUNK START");
     zPrintRawDataFp(stdout, chunks_buffer, chunks_buffer_len);
-    zPRINT("CHUNK END");
-#endif
+    zLogDebug("CHUNK END");
+//#endif
 
     if (HtpRequestBodySetupBoundary(htud, &expected_boundary, &expected_boundary_len,
                 &expected_boundary_end, &expected_boundary_end_len) < 0) {
@@ -546,11 +546,11 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
                 goto end;
             }
 			/*****************dt  end***********************/
-#ifdef ZPRINT
-            zPRINT("FILEDATA (final chunk) START:");
+//#ifdef ZPRINT
+            zLogDebug("FILEDATA (final chunk) START:");
             zPrintRawDataFp(stdout, filedata, filedata_len);
-            zPRINT("FILEDATA (final chunk) END:");
-#endif
+            zLogDebug("FILEDATA (final chunk) END:");
+//#endif
             /*****************dt  begin**********************/
             /*if (!(htud->tsflags & HTP_DONTSTORE)) {
                 if (HTPFileClose(hstate, filedata, filedata_len, flags,
@@ -570,11 +570,11 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
             if (chunks_buffer_len > expected_boundary_end_len) {
                 uint8_t *filedata = chunks_buffer;
                 uint32_t filedata_len = chunks_buffer_len - expected_boundary_len;
-#ifdef ZPRINT
-                zPRINT("FILEDATA (part) START:");
+//#ifdef ZPRINT
+                zLogDebug("FILEDATA (part) START:");
                 zPrintRawDataFp(stdout, filedata, filedata_len);
-                zPRINT("FILEDATA (part) END:");
-#endif
+                zLogDebug("FILEDATA (part) END:");
+//#endif
 			/*****************dt  begin**********************/
 			#if 0
             if (!(htud->tsflags & HTP_DONTSTORE)) {
@@ -630,11 +630,11 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
             uint8_t *filedata = NULL;
             uint32_t filedata_len = 0;
 
-#ifdef ZPRINT
-			zPRINT("filename start:");
+//#ifdef ZPRINT
+			zLogDebug("filename start:");
 			zPrintRawDataFp(stdout, filename, filename_len);
-			zPRINT("filename end:");
-#endif
+			zLogDebug("filename end:");
+//#endif
 
             SCLogDebug("we have a filename");
 
@@ -679,11 +679,11 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
 					goto end;
                 }
                 SCLogDebug("filedata_len %"PRIuMAX, (uintmax_t)filedata_len);
-#ifdef ZPRINT
-                zPRINT("FILEDATA START:");
+//#ifdef ZPRINT
+                zLogDebug("FILEDATA START:");
                 zPrintRawDataFp(stdout, filedata, filedata_len);
-                zPRINT("FILEDATA END:");
-#endif
+                zLogDebug("FILEDATA END:");
+//#endif
 				/*****************dt  begin**********************/
 				#if 0
                 result = HTPFileOpen(hstate, filename, filename_len,
@@ -717,11 +717,11 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
                     goto end;
                 }
 
-#ifdef ZPRINT
-                zPRINT("FILEDATA START: \n");
+//#ifdef ZPRINT
+                zLogDebug("FILEDATA START:");
                 zPrintRawDataFp(stdout, filedata, filedata_len);
-                zPRINT("FILEDATA END: \n");
-#endif
+                zLogDebug("FILEDATA END:");
+//#endif
                 /* form doesn't end in this chunk, but part might. Lets
                  * see if have another coming up */
                 uint8_t *header_next = Bs2bmSearch(filedata, filedata_len,
@@ -1196,6 +1196,7 @@ int DTInitHTTP()
 
 int DTRequestData(stSocketInput *stsi)
 {
+	zEnter("Enter");
 	BUG_ON(g_cfg == NULL);
 	BUG_ON(stsi == NULL);
 
@@ -1238,6 +1239,8 @@ int DTRequestData(stSocketInput *stsi)
 
 int DTResponseData(stSocketInput *stsi)
 {
+	zEnter("Enter");
+
 	BUG_ON(stsi == NULL);
 	int r = -1;
 
@@ -1263,6 +1266,8 @@ int DTResponseData(stSocketInput *stsi)
 
 int DTFreeHTTPState(void *stsi)
 {
+	zEnter("Enter");
+
 	stSocketInput *st = stsi;
 	if(NULL == st)
 	{

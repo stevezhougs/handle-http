@@ -5,7 +5,7 @@ INC=-I./ -I/usr/local/lib
 LIB=-lhtp
 
 CC=gcc
-CFLAG=-g3 -rdynamic -Werror-implicit-function-declaration -Wall -DZSHOW_LOG -DDEBUG -DZSHOWENTER -DZPRINT
+CFLAG=-g3 -rdynamic -Werror-implicit-function-declaration -Wall -DZSHOW_LOG -DDEBUG -DZSHOWENTER
 
 
 PRG=detect-http

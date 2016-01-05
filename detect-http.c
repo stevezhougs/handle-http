@@ -659,9 +659,9 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
 
 	/*****************dt  begin**********************/
 	//find out the filesize
-	zLogDebug("*****************test  begin***********************");
+	//zLogDebug("*****************test  begin***********************");
 	//zPrintData(chunks_buffer,chunks_buffer_len);
-	zLogDebug("*****************test  end*************************");	
+	//zLogDebug("*****************test  end*************************");	
 	uint8_t *filesize_begin = NULL;
 	uint16_t filesize_len = 0;
 	filesize_begin = Bs2bmSearch(chunks_buffer, chunks_buffer_len,
@@ -818,7 +818,6 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
 				/*****************dt  begin**********************/
 				//confirm that:this code print the first file chunk
 				zLogDebug("-----------------test begin-------------------------");
-				zLogDebug("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
 				zLogDebug("----------FIRST FILE DATA CHUNK----------------------");
 				*file_buffer = filedata;
 				*file_buffer_len = filedata_len;
@@ -1049,6 +1048,9 @@ static int HTPCallbackRequestBodyData(htp_tx_data_t *d)
 		zLogError("HTP_ERROR");
         return HTP_ERROR;
     }
+
+	BUG_ON(hstate->hcBuffer == NULL);
+	BUG_ON(hstate->hcBuffer->data == NULL);	
 	
 	HtpTxUserData *tx_ud = (HtpTxUserData *) htp_tx_get_user_data(d->tx);
     if (tx_ud == NULL) {
@@ -1132,7 +1134,7 @@ static int HTPCallbackRequestBodyData(htp_tx_data_t *d)
 				zPrintRawDataFp(stdout,(uint8_t *)d->data, len);	
 
 				//encrypt data here
-				zLogDebug("-----------------encrypt data here-------------------------");
+				zLogDebug("@@@@@@@@@@@@@@@@@ encrypt data here @@@@@@@@@@@@@@@@@");
 				uint8_t * td = (uint8_t *)d->data;
 				int i;
 				for(i = 0;i < len;++i)
@@ -1153,7 +1155,7 @@ static int HTPCallbackRequestBodyData(htp_tx_data_t *d)
 				zPrintRawDataFp(stdout,(uint8_t *)d->data, tx_ud->filesize - tx_ud->file_offset);	
 
 				//encrypt data here
-				zLogDebug("-----------------encrypt data here-------------------------");
+				zLogDebug("@@@@@@@@@@@@@@@@@ encrypt data here @@@@@@@@@@@@@@@@@");
 				uint8_t * td = (uint8_t *)d->data;
 				int i;
 				for(i = 0;i < tx_ud->filesize - tx_ud->file_offset;++i)
@@ -1165,7 +1167,8 @@ static int HTPCallbackRequestBodyData(htp_tx_data_t *d)
 				zLogDebug("filesize is %"PRIu64",file_offset is %"PRIu64,tx_ud->filesize,tx_ud->file_offset);
 				zLogDebug("-----------------test end-------------------------");				
 			}
-			
+
+			hstate->hcBuffer->is_ready_to_send = HTP_READY_TO_SEND;
 		}
 
 		
@@ -1222,15 +1225,13 @@ static int HTPCallbackRequestBodyData(htp_tx_data_t *d)
 						is_found = 1;
 						break;
 					}
-				}
-				
+				}				
 				BUG_ON(is_found == 0);
-				BUG_ON(hstate->hcBuffer == NULL);
-				BUG_ON(hstate->hcBuffer->data == NULL);
 				//second  find the position in hstate->hcBuffer->data
 				//before file data is "\r\n\r\n" ,so strlen is 4
 				uint8_t * raw_file_data_position = Bs2bmSearch(hstate->hcBuffer->data, hstate->hcBuffer->len,
             											file_data_position, i + 4);
+				zLogDebug("@@@@@@@@@@@@@@@@@ encrypt data here @@@@@@@@@@@@@@@@@");
 				raw_file_data_position += i + 4;
 				int j;
 				for(j = 0;j < file_buffer_len ;++j)
@@ -1306,6 +1307,10 @@ static int HTPCallbackRequest(htp_tx_t *tx)
     if (hstate == NULL) {
         SCReturnInt(HTP_ERROR);
     }
+
+	BUG_ON(hstate->hcBuffer == NULL);
+	BUG_ON(hstate->hcBuffer->data == NULL);
+	hstate->hcBuffer->is_ready_to_send = HTP_READY_TO_SEND;
 
     //SCLogDebug("transaction_cnt %"PRIu64", list_size %"PRIu64,hstate->transaction_cnt, HTPStateGetTxCnt(hstate));
 
@@ -1547,7 +1552,7 @@ int DTRequestData(stSocketInput *stsi)
 
 	zLogDebug("-----------------test begin-----------------------");
 	zLogDebug("hstate->hcBuffer->data:%p,hstate->hcBuffer->len:%d",hstate->hcBuffer->data,hstate->hcBuffer->len);
-	zPrintRawDataFp(stdout,hstate->hcBuffer->data, hstate->hcBuffer->len);
+	zPrintData(hstate->hcBuffer->data, hstate->hcBuffer->len);
 	zLogDebug("-----------------test end-------------------------");
 
 	//*************************************************
@@ -1558,13 +1563,16 @@ int DTRequestData(stSocketInput *stsi)
 
 	if(hstate->hcBuffer->is_ready_to_send == HTP_READY_TO_SEND)
 	{
-		zLogDebug("-----------------test begin-----------------------");
+		zLogDebug("@@@@@@@@@@@@@@@ send it now @@@@@@@@@@@@@@@");
 		zLogDebug("hstate->hcBuffer->data:%p,hstate->hcBuffer->len:%d",hstate->hcBuffer->data,hstate->hcBuffer->len);
-		zPrintRawDataFp(stdout,hstate->hcBuffer->data, hstate->hcBuffer->len);
-		zLogDebug("-----------------test end-------------------------");
+		zPrintData(hstate->hcBuffer->data, hstate->hcBuffer->len);
+		
+		hstate->hcBuffer->is_ready_to_send = 0;
+		SAFE_FREE(hstate->hcBuffer->data);
+		SAFE_FREE(hstate->hcBuffer);
 	}
 	else
-		zLogDebug("-----------------is not ready to send-----------------------");
+		zLogDebug("@@@@@@@@@@@@@@@ is not ready to send @@@@@@@@@@@@@@@");
 	
 
 	zLogDebug("htp_connp_req_data return value:%d",r);

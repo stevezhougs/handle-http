@@ -172,7 +172,7 @@ int main(int argc,char *argv[])
 		"------WebKitFormBoundaryqPEJVlkco56jW0IM\r\n"
 		"Content-Disposition: form-data; name=\"file\"; filename=\"1.txt\"\r\n"
 		"Content-Type: text/plain\r\n"
-		"\r\n1";
+		"\r\n";
 		
 	uint32_t http_req_len1 = sizeof(http_req_buf1) - 1;
 
@@ -188,7 +188,7 @@ int main(int argc,char *argv[])
 	zLogDebug("length is:%d",uc_http_req_len1);	
 //-------------------------------------------------------------------------
 	uint8_t http_req_buf1_1[] =
-		"234567890\r\n"
+		"1234567890\r\n"
 		"------WebKitFormBoundaryq";
 
 	uint32_t http_req_len1_1 = sizeof(http_req_buf1_1) - 1;
@@ -205,7 +205,7 @@ int main(int argc,char *argv[])
 	zLogDebug("length is:%d",uc_http_req_len1_1); 
 //-------------------------------------------------------------------------
 	uint8_t http_req_buf1_2[] =
-		"PEJVlkco56jW0IM--\r\n";
+		"PEJVlkco56jW0IM--";
 
 	uint32_t http_req_len1_2 = sizeof(http_req_buf1_2) - 1;
 
@@ -221,7 +221,7 @@ int main(int argc,char *argv[])
 	zLogDebug("length is:%d",uc_http_req_len1_2); 	
 //-------------------------------------------------------------------------
 	uint8_t http_req_buf1_3[] =
-		"23";
+		"\r\n";
 
 	uint32_t http_req_len1_3 = sizeof(http_req_buf1_3) - 1;
 
@@ -302,14 +302,15 @@ int main(int argc,char *argv[])
 	ssInput.buf_len = http_len_get_2;
 	DTRequestData(&ssInput);
 	zLogDebug("After the httpbuf_get_1,ssInput.htp_state is:%p",ssInput.htp_state);	
-#endif
+
 
 
 	ssInput.buf = http_buf_complete;
 	ssInput.buf_len = http_len_complete;
 	DTRequestData(&ssInput);
 	zLogDebug("After the http_buf_complete,ssInput.htp_state is:%p",ssInput.htp_state);
-#if 0
+#endif
+
 
 	ssInput.buf = uc_http_req_buf1;
 	ssInput.buf_len = uc_http_req_len1;
@@ -330,6 +331,7 @@ int main(int argc,char *argv[])
 	ssInput.buf_len = uc_http_req_len1_3;
 	DTRequestData(&ssInput);
 	zLogDebug("After the 1_3 req,ssInput.htp_state is:%p",ssInput.htp_state);
+#if 0
 
 
 	ssInput.buf = uc_http_req_buf2;

@@ -53,6 +53,17 @@ enum {
     HTP_BODY_REQUEST_PUT,
 };
 
+#define HTP_READY_TO_SEND       0x01    /**< ready to send this buffer */
+
+/*****************dt  begin**********************/
+/** Struct used to hold chunks of a whole request */
+struct HtpChunkBuffer_ {
+    uint8_t *data;              /**< Pointer to the data of the chunk */
+    uint32_t len; 				/**< Length of the chunk */
+	int is_ready_to_send;
+};
+typedef struct HtpChunkBuffer_ HtpChunkBuffer;
+/*****************dt  end***********************/
 
 
 /** Need a linked list in order to keep track of these */
@@ -104,6 +115,8 @@ typedef struct HtpBody_ {
 #define HTP_FILENAME_SET        0x08   /**< filename is registered in the flow */
 #define HTP_DONTSTORE           0x10    /**< not storing this file */
 
+#define HTP_FILEDATA_COME       0x01    /**< file data is come */
+
 /** Now the Body Chunks will be stored per transaction, at
   * the tx user data */
 typedef struct HtpTxUserData_ {
@@ -127,6 +140,33 @@ typedef struct HtpTxUserData_ {
      */
     uint8_t *boundary;
     uint8_t boundary_len;
+	
+	/*****************dt  begin**********************/
+	uint8_t *boundary_end;
+    uint8_t boundary_end_len;
+
+	//uint8_t *filesize;
+    //uint8_t filesize_len;
+	uint64_t filesize;
+
+	uint64_t file_offset;//this value default to be 0
+
+	uint8_t *filename;
+    uint8_t filename_len;
+	
+	uint8_t *chunks;//total chunks
+    uint8_t chunks_len;	
+
+	uint8_t *chunk;//this chunk number
+    uint8_t chunk_len;
+	
+	//save as stSocketInput
+	//do not need free
+	uint8_t *buf;
+	uint32_t buf_len;
+
+	int is_file_data_come;
+	/*****************dt  end***********************/
 
     uint8_t tsflags;
     uint8_t tcflags;
@@ -154,6 +194,11 @@ typedef struct HtpState_ {
     uint16_t flags;
     //uint16_t events;
     uint16_t htp_messages_offset; /**< offset into conn->messages list */
+	
+	/*****************dt  begin**********************/
+	HtpChunkBuffer *hcBuffer;
+	/*****************dt  end***********************/
+
 } HtpState;
 
 #ifdef	__cplusplus

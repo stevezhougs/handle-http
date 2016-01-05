@@ -6,11 +6,9 @@
 #include "log.h"
 #include "util-spm.h"
 
-
-
+#include <math.h>
 
 static htp_cfg_t *g_cfg = NULL;
-
 
 static void HTPFree(void *ptr, size_t size)
 {
@@ -144,6 +142,19 @@ static int HtpRequestBodySetupMultipart(htp_tx_data_t *d, HtpTxUserData *htud)
                 htud->boundary_len = (uint8_t)boundary_len;
                 memcpy(htud->boundary, boundary, boundary_len);
 
+				/*****************dt  begin**********************/
+				htud->boundary_end= malloc(boundary_len + 2);
+                if (htud->boundary_end == NULL) {
+					SAFE_FREE(htud->boundary);
+					zLogError("Memory allocate failed");
+                    return -1;
+                }
+                htud->boundary_end_len = (uint8_t)boundary_len + 2;
+                memcpy(htud->boundary_end, boundary, boundary_len);
+				htud->boundary_end[htud->boundary_end_len - 2] = '-';
+				htud->boundary_end[htud->boundary_end_len - 1] = '-';
+				/*****************dt  end***********************/
+
                 htud->tsflags |= HTP_BOUNDARY_SET;
             } else {
                 zLogDebug("invalid boundary");
@@ -177,9 +188,9 @@ static int HTTPParseContentDispositionHeader(uint8_t *name, size_t name_len,
         uint8_t *data, size_t len, uint8_t **retptr, size_t *retlen)
 {
 #ifdef ZPRINT
-    zPRINT("DATA START:");
+    zLogDebug("DATA START:");
     zPrintRawDataFp(stdout, data, len);
-    zPRINT("DATA END:");
+    zLogDebug("DATA END:");
 #endif
     size_t x;
     int quote = 0;
@@ -271,9 +282,9 @@ static void HtpRequestBodyMultipartParseHeader(HtpState *hstate,
     size_t ft_len = 0;
 
 #ifdef ZPRINT
-    zPRINT("HEADER START:");
+    zLogDebug("HEADER START:");
     zPrintRawDataFp(stdout, header, header_len);
-    zPRINT("HEADER END:");
+    zLogDebug("HEADER END:");
 #endif
 
     while (header_len > 0) {
@@ -325,7 +336,7 @@ static void HtpRequestBodyMultipartParseHeader(HtpState *hstate,
         }
 
         if (next_line == NULL) {
-            SCLogDebug("no next_line");
+            //SCLogDebug("no next_line");
             break;
         }
         header_len -= ((next_line + 2) - header);
@@ -353,17 +364,18 @@ static void HtpRequestBodyMultipartParseHeader(HtpState *hstate,
 static void HtpRequestBodyReassemble(HtpTxUserData *htud,
         uint8_t **chunks_buffer, uint32_t *chunks_buffer_len)
 {
+	zEnter("Enter");
     uint8_t *buf = NULL;
     uint8_t *pbuf = NULL;
     uint32_t buf_len = 0;
     HtpBodyChunk *cur = htud->request_body.first;
 
     for ( ; cur != NULL; cur = cur->next) {
-        zLogDebug("chunk %p", cur);
+        //zLogDebug("chunk %p", cur);
 
         /* skip body chunks entirely before what we parsed already */
         if ((uint64_t )cur->stream_offset + cur->len <= htud->request_body.body_parsed) {
-            zLogDebug("skipping chunk");
+            //zLogDebug("skipping chunk");
             continue;
         }
 
@@ -381,6 +393,7 @@ static void HtpRequestBodyReassemble(HtpTxUserData *htud,
             buf_len += tlen;
             //if ((pbuf = HTPRealloc(buf, buf_len - tlen, buf_len)) == NULL) {
             if ((pbuf = realloc(buf,buf_len)) == NULL) {
+				zLogError("memory allocate failed!");
                 //HTPFree(buf, buf_len - tlen);
                 free(buf);
                 buf = NULL;
@@ -411,6 +424,13 @@ static void HtpRequestBodyReassemble(HtpTxUserData *htud,
     *chunks_buffer_len = buf_len;
 }
 
+static int HTPCallbackRequestStart(htp_tx_t *tx)
+{
+	zEnter("Enter,htp_tx_t *tx:%p",tx);
+	return HTP_OK;
+}
+
+
 static int HTPCallbackRequestLine(htp_tx_t *tx)
 {
 	zEnter("Enter,htp_tx_t *tx:%p",tx);
@@ -420,6 +440,14 @@ static int HTPCallbackRequestLine(htp_tx_t *tx)
 static int HTPCallbackRequestHeaderData(htp_tx_data_t *tx_data)
 {
 	zEnter("Enter,htp_tx_data_t *tx_data:%p",tx_data);
+	
+    if (tx_data->len == 0)
+        return HTP_OK;
+
+	//zLogDebug("-----------------test begin-----------------------");
+	//zPrintRawDataFp(stdout,tx_data->data, tx_data->len);
+	//zLogDebug("-----------------test end-------------------------");
+	
 	return HTP_OK;
 }
 
@@ -476,9 +504,25 @@ static int HTPStateGetAlstateProgress(void *tx, uint8_t direction)
         return ((htp_tx_t *)tx)->response_progress;
 }
 
+static int ExtractDataFromString(uint8_t *text, uint32_t textlen,uint8_t **find_begin)
+{
+	int found = -1;
+	while(*find_begin <= text + textlen)
+	{
+		if((*find_begin)[0] == '\r')
+		{
+			found = 1;	
+			break;
+		}
+		(*find_begin) += 1;
+	}
+	return found;
+}
 
+#define C_D_S "Content-Disposition: form-data; name=\"size\"\r\n\r\n"
 static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
-                                  void *tx, uint8_t *chunks_buffer, uint32_t chunks_buffer_len)
+                                  void *tx, uint8_t *chunks_buffer, uint32_t chunks_buffer_len,
+                                  uint8_t **file_buffer, uint32_t *file_buffer_len)
 {
     //int result = 0;
     uint8_t *expected_boundary = NULL;
@@ -487,16 +531,23 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
     uint8_t expected_boundary_end_len = 0;
     int tx_progress = 0;
 
-//#ifdef ZPRINT
+#ifdef ZPRINT
     zLogDebug("CHUNK START");
     zPrintRawDataFp(stdout, chunks_buffer, chunks_buffer_len);
     zLogDebug("CHUNK END");
-//#endif
+#endif
 
     if (HtpRequestBodySetupBoundary(htud, &expected_boundary, &expected_boundary_len,
                 &expected_boundary_end, &expected_boundary_end_len) < 0) {
         goto end;
     }
+	
+//#ifdef ZPRINT
+    zLogDebug("expected_boundary_end START");
+	zLogDebug("expected_boundary_end_len is:%d",expected_boundary_end_len);
+    zPrintRawDataFp(stdout, expected_boundary_end, expected_boundary_end_len);
+    zLogDebug("expected_boundary_end END");
+//#endif
 
     /* search for the header start, header end and form end */
     uint8_t *header_start = Bs2bmSearch(chunks_buffer, chunks_buffer_len,
@@ -546,6 +597,9 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
                 goto end;
             }
 			/*****************dt  end***********************/
+
+			*file_buffer = filedata;
+			*file_buffer_len = filedata_len;
 //#ifdef ZPRINT
             zLogDebug("FILEDATA (final chunk) START:");
             zPrintRawDataFp(stdout, filedata, filedata_len);
@@ -576,6 +630,9 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
                 zLogDebug("FILEDATA (part) END:");
 //#endif
 			/*****************dt  begin**********************/
+				*file_buffer = filedata;
+				*file_buffer_len = filedata_len;
+
 			#if 0
             if (!(htud->tsflags & HTP_DONTSTORE)) {
                     result = HTPFileStoreChunk(hstate, filedata,
@@ -600,6 +657,44 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
         }
     }
 
+	/*****************dt  begin**********************/
+	//find out the filesize
+	zLogDebug("*****************test  begin***********************");
+	//zPrintData(chunks_buffer,chunks_buffer_len);
+	zLogDebug("*****************test  end*************************");	
+	uint8_t *filesize_begin = NULL;
+	uint16_t filesize_len = 0;
+	filesize_begin = Bs2bmSearch(chunks_buffer, chunks_buffer_len,
+            (uint8_t *)C_D_S, strlen(C_D_S));
+	if(filesize_begin != NULL)
+	{
+		filesize_begin += strlen(C_D_S);
+		uint8_t *filesize_end = filesize_begin;
+		if(1 == ExtractDataFromString(chunks_buffer,chunks_buffer_len,&filesize_end))
+		{
+			filesize_len = 	filesize_end - 	filesize_begin;
+			int b_filesize_len = 0;
+			int e_filesize_len = filesize_len;
+			htud->filesize = 0;
+			for(b_filesize_len = 0;b_filesize_len < filesize_len; ++b_filesize_len)
+			{
+				htud->filesize += pow(10,--e_filesize_len) *((int)filesize_begin[b_filesize_len] - 48);
+			}
+			zLogDebug("filesize is %"PRIu64,htud->filesize);
+		}
+		else
+		{
+			zLogDebug("do not have filesize");
+		}
+	}
+	
+	//find out the chunks
+	//add later
+	
+	//find out the chunk	
+	//add later
+	/*****************dt  end***********************/
+
     while (header_start != NULL && header_end != NULL &&
             header_end != form_end &&
             header_start < (chunks_buffer + chunks_buffer_len) &&
@@ -612,7 +707,7 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
         uint16_t filetype_len = 0;
 
         uint32_t header_len = header_end - header_start;
-        SCLogDebug("header_len %u", header_len);
+        //SCLogDebug("header_len %u", header_len);
         uint8_t *header = header_start;
 
         /* skip empty records */
@@ -685,6 +780,10 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
                 zLogDebug("FILEDATA END:");
 //#endif
 				/*****************dt  begin**********************/
+				//a complete req will come here 
+				*file_buffer = filedata;
+				*file_buffer_len = filedata_len;
+
 				#if 0
                 result = HTPFileOpen(hstate, filename, filename_len,
                             filedata, filedata_len, hstate->transaction_cnt,
@@ -716,12 +815,24 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
 					/*****************dt  begin**********************/
                     goto end;
                 }
-
-//#ifdef ZPRINT
-                zLogDebug("FILEDATA START:");
+				/*****************dt  begin**********************/
+				//confirm that:this code print the first file chunk
+				zLogDebug("-----------------test begin-------------------------");
+				zLogDebug("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+				zLogDebug("----------FIRST FILE DATA CHUNK----------------------");
+				*file_buffer = filedata;
+				*file_buffer_len = filedata_len;
+				zPrintRawDataFp(stdout, filedata, filedata_len);	
+				htud->is_file_data_come = HTP_FILEDATA_COME;
+				zLogDebug("-----------------test end-------------------------");
+				
+				
+				/*****************dt  begin**********************/
+#ifdef ZPRINT
+                zPRINT("FILEDATA START:");
                 zPrintRawDataFp(stdout, filedata, filedata_len);
-                zLogDebug("FILEDATA END:");
-//#endif
+                zPRINT("FILEDATA END:");
+#endif
                 /* form doesn't end in this chunk, but part might. Lets
                  * see if have another coming up */
                 uint8_t *header_next = Bs2bmSearch(filedata, filedata_len,
@@ -801,17 +912,18 @@ end:
     return 0;
 }
 
+/*****************dt  begin**********************/
+#if 0
+/*****************dt  end***********************/
 
 /** \internal
  *  \brief Handle POST, no multipart body data
  */
+ 
 static int HtpRequestBodyHandlePOST(HtpState *hstate, HtpTxUserData *htud,
         htp_tx_t *tx, uint8_t *data, uint32_t data_len)
 {
-/*****************dt  begin**********************/
-	return 0;
-#if 0
-/*****************dt  end***********************/
+
 
     int result = 0;
 
@@ -858,9 +970,7 @@ static int HtpRequestBodyHandlePOST(HtpState *hstate, HtpTxUserData *htud,
     return 0;
 end:
     return -1;
-/*****************dt  begin**********************/
-#endif
-/*****************dt  end***********************/	
+	
 }
 
 /** \internal
@@ -869,11 +979,6 @@ end:
 static int HtpRequestBodyHandlePUT(HtpState *hstate, HtpTxUserData *htud,
         htp_tx_t *tx, uint8_t *data, uint32_t data_len)
 {
-/*****************dt  begin**********************/
-	return 0;
-#if 0
-/*****************dt  end***********************/
-
     int result = 0;
 
     /* see if we need to open the file */
@@ -918,11 +1023,14 @@ static int HtpRequestBodyHandlePUT(HtpState *hstate, HtpTxUserData *htud,
 
     return 0;
 end:
-    return -1;
+    return -1;	
+}
 /*****************dt  begin**********************/
 #endif
-/*****************dt  end***********************/	
-}
+/*****************dt  end***********************/
+
+#define C_T "Content-Type: "
+
 
 /**
  *  * \brief Function callback to append chunks for Requests
@@ -955,6 +1063,10 @@ static int HTPCallbackRequestBodyData(htp_tx_data_t *d)
         /* Set the user data for handling body chunks on this transaction */
         htp_tx_set_user_data(d->tx, tx_ud);
     }
+/*****************dt  begin**********************/
+	//tx_ud->buf = hstate->buf;
+	//tx_ud->buf_len = hstate->buf_len;
+/*****************dt  end***********************/	
     if (!tx_ud->response_body_init) {
         tx_ud->response_body_init = 1;
         tx_ud->operation = HTP_BODY_REQUEST;
@@ -966,11 +1078,12 @@ static int HTPCallbackRequestBodyData(htp_tx_data_t *d)
                 tx_ud->request_body_type = HTP_BODY_REQUEST_MULTIPART;
             } else if (r == 0) {
                 tx_ud->request_body_type = HTP_BODY_REQUEST_POST;
-                zLogDebug("not multipart");
+                zLogError("not multipart");
             }
         } else if (d->tx->request_method_number == HTP_M_PUT) {
             if (HtpRequestBodySetupPUT(d, tx_ud) == 0) {
                 tx_ud->request_body_type = HTP_BODY_REQUEST_PUT;
+				zLogError("not multipart");
             }
         }
     }
@@ -995,6 +1108,70 @@ static int HTPCallbackRequestBodyData(htp_tx_data_t *d)
 		*/
         HtpBodyAppendChunk(tx_ud, &tx_ud->request_body, (uint8_t *)d->data, len);
 
+//************************************************************************
+//************untill here,change d->data,will change the 
+//					original body data
+
+//and after calling HtpBodyAppendChunk,if we have the value:tx_ud->filesize and tx_ud->file_offset
+//we can extract file data from d->data 
+		if( 0 != tx_ud->filesize &&
+			tx_ud->filesize == tx_ud->file_offset)
+		{
+			zLogDebug("file already end");
+		}
+		
+		if(	tx_ud->is_file_data_come == HTP_FILEDATA_COME &&
+			tx_ud->filesize > tx_ud->file_offset)
+		{
+			if(tx_ud->file_offset + len < tx_ud->filesize)
+			{
+				//file data do not end
+				zLogDebug("-----------------test begin-------------------------");
+				zLogDebug("----------MIDDLE FILE DATA CHUNK----------------------");
+				zLogDebug("filesize is %"PRIu64",file_offset is %"PRIu64,tx_ud->filesize,tx_ud->file_offset);
+				zPrintRawDataFp(stdout,(uint8_t *)d->data, len);	
+
+				//encrypt data here
+				zLogDebug("-----------------encrypt data here-------------------------");
+				uint8_t * td = (uint8_t *)d->data;
+				int i;
+				for(i = 0;i < len;++i)
+				{
+					td[i] = 'A';
+				}
+				
+				tx_ud->file_offset += len;
+				zLogDebug("filesize is %"PRIu64",file_offset is %"PRIu64,tx_ud->filesize,tx_ud->file_offset);		
+				zLogDebug("-----------------test end-------------------------");
+			}
+			else
+			{
+				//file data end in this d->data
+				zLogDebug("-----------------test begin-------------------------");
+				zLogDebug("---------- LAST FILE DATA CHUNK----------------------");
+				zLogDebug("filesize is %"PRIu64",file_offset is %"PRIu64,tx_ud->filesize,tx_ud->file_offset);
+				zPrintRawDataFp(stdout,(uint8_t *)d->data, tx_ud->filesize - tx_ud->file_offset);	
+
+				//encrypt data here
+				zLogDebug("-----------------encrypt data here-------------------------");
+				uint8_t * td = (uint8_t *)d->data;
+				int i;
+				for(i = 0;i < tx_ud->filesize - tx_ud->file_offset;++i)
+				{
+					td[i] = 'A';
+				}
+				
+				tx_ud->file_offset = tx_ud->filesize;
+				zLogDebug("filesize is %"PRIu64",file_offset is %"PRIu64,tx_ud->filesize,tx_ud->file_offset);
+				zLogDebug("-----------------test end-------------------------");				
+			}
+			
+		}
+
+		
+
+//************************************************************************
+		
         uint8_t *chunks_buffer = NULL;
         uint32_t chunks_buffer_len = 0;
 
@@ -1006,15 +1183,70 @@ static int HTPCallbackRequestBodyData(htp_tx_data_t *d)
 
             HtpRequestBodyReassemble(tx_ud, &chunks_buffer, &chunks_buffer_len);
             if (chunks_buffer == NULL) {
+				//*******************************************************
+				//when chunks_buffer is NULL,we can sure this is file data?
+				//so we can make sure this coming data is part of file?
+				//*******************************************************
                 goto end;
             }
 #ifdef ZPRINT
-            zPRINT("REASSCHUNK START:");
+            zLogDebug("REASSCHUNK START:");
             zPrintRawDataFp(stdout, chunks_buffer, chunks_buffer_len);
-            zPRINT("REASSCHUNK END:");
+            zLogDebug("REASSCHUNK END:");
 #endif
 
-            HtpRequestBodyHandleMultipart(hstate, tx_ud, d->tx, chunks_buffer, chunks_buffer_len);
+			uint8_t *file_buffer = NULL;
+	        uint32_t file_buffer_len = 0;
+			
+            HtpRequestBodyHandleMultipart(hstate, tx_ud, d->tx, chunks_buffer, chunks_buffer_len,&file_buffer,&file_buffer_len);
+
+			/*****************dt  begin**********************/
+			//how many conditions?
+			zLogDebug("#################################test begin#################################");
+			zLogDebug("file_buffer:%p,file_buffer_len:%d",file_buffer,file_buffer_len);
+			zPrintRawDataFp(stdout,file_buffer, file_buffer_len);	
+			if(0 != file_buffer_len)
+			{
+				//first find the position in chunks_buffer
+				uint8_t * file_data_position = Bs2bmSearch(chunks_buffer, chunks_buffer_len,
+            											(uint8_t *)C_T, strlen(C_T));
+
+				BUG_ON(file_data_position == NULL);
+				int e_len = chunks_buffer_len - (file_data_position - chunks_buffer);
+				zLogDebug("e_len is %d",e_len);
+				int i,is_found = 0;
+				for(i = 0;i < e_len ;++i)
+				{
+					if(file_data_position[i] == '\r')
+					{
+						is_found = 1;
+						break;
+					}
+				}
+				
+				BUG_ON(is_found == 0);
+				BUG_ON(hstate->hcBuffer == NULL);
+				BUG_ON(hstate->hcBuffer->data == NULL);
+				//second  find the position in hstate->hcBuffer->data
+				//before file data is "\r\n\r\n" ,so strlen is 4
+				uint8_t * raw_file_data_position = Bs2bmSearch(hstate->hcBuffer->data, hstate->hcBuffer->len,
+            											file_data_position, i + 4);
+				raw_file_data_position += i + 4;
+				int j;
+				for(j = 0;j < file_buffer_len ;++j)
+				{
+					raw_file_data_position[j] = 'A';
+				}
+
+				hstate->hcBuffer->is_ready_to_send = HTP_READY_TO_SEND;
+				
+				zLogDebug("filesize is %"PRIu64",file_offset is %"PRIu64,tx_ud->filesize,tx_ud->file_offset);
+				tx_ud->file_offset += file_buffer_len;
+				zLogDebug("filesize is %"PRIu64",file_offset is %"PRIu64,tx_ud->filesize,tx_ud->file_offset);
+			}
+			zLogDebug("#################################test end#################################");
+			/*****************dt  end************************/
+
 
             if (chunks_buffer != NULL) {
                 //HTPFree(chunks_buffer, chunks_buffer_len);
@@ -1022,9 +1254,11 @@ static int HTPCallbackRequestBodyData(htp_tx_data_t *d)
             }
         }
 		 else if (tx_ud->request_body_type == HTP_BODY_REQUEST_POST) {
-            HtpRequestBodyHandlePOST(hstate, tx_ud, d->tx, (uint8_t *)d->data, (uint32_t)d->len);
+		 	zLogFatal("So far,we just use Multipart!");
+            //HtpRequestBodyHandlePOST(hstate, tx_ud, d->tx, (uint8_t *)d->data, (uint32_t)d->len);
         } else if (tx_ud->request_body_type == HTP_BODY_REQUEST_PUT) {
-            HtpRequestBodyHandlePUT(hstate, tx_ud, d->tx, (uint8_t *)d->data, (uint32_t)d->len);
+			 zLogFatal("So far,we just use Multipart!");
+            //HtpRequestBodyHandlePUT(hstate, tx_ud, d->tx, (uint8_t *)d->data, (uint32_t)d->len);
         }
 
     //}
@@ -1063,6 +1297,30 @@ end:
 static int HTPCallbackRequest(htp_tx_t *tx) 
 {
 	zEnter("Enter,htp_tx_t *tx:%p",tx);
+
+	if (tx == NULL) {
+        SCReturnInt(HTP_ERROR);
+    }
+
+    HtpState *hstate = htp_connp_get_user_data(tx->connp);
+    if (hstate == NULL) {
+        SCReturnInt(HTP_ERROR);
+    }
+
+    //SCLogDebug("transaction_cnt %"PRIu64", list_size %"PRIu64,hstate->transaction_cnt, HTPStateGetTxCnt(hstate));
+
+    SCLogDebug("HTTP request completed");
+
+
+    HtpTxUserData *htud = (HtpTxUserData *)htp_tx_get_user_data(tx);
+    if (htud != NULL) {
+        if (htud->tsflags & HTP_FILENAME_SET) {
+            SCLogDebug("closing file that was being stored");
+            //(void)HTPFileClose(hstate, NULL, 0, 0, STREAM_TOSERVER);
+            htud->tsflags &= ~HTP_FILENAME_SET;
+        }
+    }
+	
 	return HTP_OK;
 }
 
@@ -1135,6 +1393,18 @@ static void HtpTxUserDataFree(HtpTxUserData *htud) {
         //AppLayerDecoderEventsFreeEvents(&htud->decoder_events);
         if (htud->boundary)
             HTPFree(htud->boundary, htud->boundary_len);
+/*****************dt  begin**********************/
+		if (htud->boundary_end)
+			SAFE_FREE(htud->boundary_end);
+		//if (htud->filesize)
+			//SAFE_FREE(htud->filesize);
+		if (htud->filename)
+			SAFE_FREE(htud->filename);
+		if (htud->chunks)
+			SAFE_FREE(htud->chunks);
+		if (htud->chunk)
+			SAFE_FREE(htud->chunk);	
+/*****************dt  end***********************/		
         HTPFree(htud, sizeof(HtpTxUserData));
     }
 }
@@ -1175,7 +1445,8 @@ int DTInitHTTP()
 		zLogFatal("memory allocate failed!");
 		return -1;
 	}	
-
+	
+	htp_config_register_request_start(g_cfg, HTPCallbackRequestStart);
 	htp_config_register_request_line(g_cfg, HTPCallbackRequestLine);
 	htp_config_register_request_header_data(g_cfg, HTPCallbackRequestHeaderData);
 	htp_config_register_request_trailer_data(g_cfg, HTPCallbackRequestHeaderData);
@@ -1200,6 +1471,8 @@ int DTRequestData(stSocketInput *stsi)
 	BUG_ON(g_cfg == NULL);
 	BUG_ON(stsi == NULL);
 
+	if(NULL == stsi->buf || 0 == stsi->buf_len)
+		return 0;
 	//zPrintRawDataFp(stdout, stsi->buf, stsi->buf_len);
 	//zLogDebug("%s",stsi->buf);
 	
@@ -1218,6 +1491,7 @@ int DTRequestData(stSocketInput *stsi)
 		hstate->connp = htp_connp_create(g_cfg);
 		if (hstate->connp == NULL)
 		{
+			SAFE_FREE(hstate);
 			zLogFatal("memory allocate failed!");
 			return -1;
 		}
@@ -1228,10 +1502,70 @@ int DTRequestData(stSocketInput *stsi)
 		stsi->htp_state = hstate;
 	}
 	//htp_conn_t * conn = htp_connp_get_connection(connp);
+	BUG_ON(hstate == NULL);
 
+	if(NULL == hstate->hcBuffer)
+	{
+		 HtpChunkBuffer *hcb = (HtpChunkBuffer *)malloc(sizeof(HtpChunkBuffer));
+		 if(hcb == NULL)
+		 {
+		 	zLogFatal("memory allocate failed!");
+			return -1;
+		 }
+		 memset(hcb, 0x00, sizeof(HtpChunkBuffer));
+		 hcb->len = stsi->buf_len;
+		 hcb->data = malloc(stsi->buf_len);
+        if (hcb->data == NULL) {
+			SAFE_FREE(hcb);
+            zLogFatal("memory allocate failed!");
+			return -1;
+        }
+        memcpy(hcb->data, stsi->buf, stsi->buf_len);
+		hstate->hcBuffer = hcb;
+	}
+	else
+	{
+		uint8_t *buf = hstate->hcBuffer->data;
+	    uint8_t *pbuf = NULL;
+		uint32_t buf_len = hstate->hcBuffer->len;
+        if ((pbuf = realloc(buf,buf_len + stsi->buf_len)) == NULL) 
+		{
+            zLogFatal("memory allocate failed!");
+			return -1;
+        }
+        buf = pbuf;
+        memcpy(buf + buf_len, stsi->buf, stsi->buf_len);
+		hstate->hcBuffer->data = buf;
+		hstate->hcBuffer->len += stsi->buf_len;
+	}
+
+	BUG_ON(hstate->hcBuffer->data == NULL);
+	BUG_ON(hstate->hcBuffer->len == 0);
+
+	
 	htp_time_t ts = { zGetTimestamp(), 0 };
+
+	zLogDebug("-----------------test begin-----------------------");
+	zLogDebug("hstate->hcBuffer->data:%p,hstate->hcBuffer->len:%d",hstate->hcBuffer->data,hstate->hcBuffer->len);
+	zPrintRawDataFp(stdout,hstate->hcBuffer->data, hstate->hcBuffer->len);
+	zLogDebug("-----------------test end-------------------------");
+
+	//*************************************************
+	//whether need a flag to sign that is it input data have bee send?
+	//*************************************************	
     /* pass the new data to the htp parser */
-    r = htp_connp_req_data(hstate->connp, &ts, stsi->buf, stsi->buf_len);
+    r = htp_connp_req_data(hstate->connp, &ts, hstate->hcBuffer->data + (hstate->hcBuffer->len - stsi->buf_len) , stsi->buf_len);
+
+	if(hstate->hcBuffer->is_ready_to_send == HTP_READY_TO_SEND)
+	{
+		zLogDebug("-----------------test begin-----------------------");
+		zLogDebug("hstate->hcBuffer->data:%p,hstate->hcBuffer->len:%d",hstate->hcBuffer->data,hstate->hcBuffer->len);
+		zPrintRawDataFp(stdout,hstate->hcBuffer->data, hstate->hcBuffer->len);
+		zLogDebug("-----------------test end-------------------------");
+	}
+	else
+		zLogDebug("-----------------is not ready to send-----------------------");
+	
 
 	zLogDebug("htp_connp_req_data return value:%d",r);
 	return 0;
@@ -1309,7 +1643,13 @@ int DTFreeHTTPState(void *stsi)
         
         htp_connp_destroy_all(s->connp);
     }
-
+	
+	if(s->hcBuffer)
+	{
+		SAFE_FREE(s->hcBuffer->data);
+		SAFE_FREE(s->hcBuffer);
+	}
+	
     FileContainerFree(s->files_ts);
     FileContainerFree(s->files_tc);
     free(s);

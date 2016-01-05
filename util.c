@@ -49,4 +49,14 @@ void zPrintRawDataFp(FILE *fp, uint8_t *buf, uint32_t buflen)
         fprintf(fp, "\n");
 }
 
+void zPrintData(uint8_t *buf, uint32_t buflen)
+{
+    uint32_t u = 0;
+    for (u = 0; u < buflen; ++u) 
+	{	
+		fprintf(stdout, "%c", (uint8_t)buf[u]);
+	}
+	fprintf(stdout, "\n");
+}
+
 

@@ -138,8 +138,9 @@ static int FileAppendFileData(FileContainer *ffc, FileData *ffd) {
 static int FilePruneFile(File *file)
 {
     SCEnter();
-
+#ifdef DEBUG
     SCLogDebug("file %p, file->chunks_cnt %"PRIu64, file, file->chunks_cnt);
+#endif
 
     if (!(file->flags & FILE_NOMAGIC)) {
         /* need magic but haven't set it yet, bail out */
@@ -373,8 +374,12 @@ static void FileFree(File *ff) {
     if (ff->md5_ctx)
         HASH_Destroy(ff->md5_ctx);
 #endif
+
+#ifdef DEBUG
     SCLogDebug("ff chunks_cnt %"PRIu64", chunks_cnt_max %"PRIu64,
             ff->chunks_cnt, ff->chunks_cnt_max);
+#endif
+
     SCFree(ff);
 }
 

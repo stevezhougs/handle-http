@@ -80,6 +80,7 @@
  */
 int HtpBodyAppendChunk(HtpTxUserData *htud, HtpBody *body, uint8_t *data, uint32_t len)
 {
+	zEnter("Enter");
 
     HtpBodyChunk *bd = NULL;
 
@@ -227,10 +228,11 @@ void HtpBodyPrune(HtpBody *body)
         zLogDebug("cur->stream_offset %"PRIu64" + cur->len %u = %"PRIu64", "
                 "body->body_parsed %"PRIu64, cur->stream_offset, cur->len,
                 cur->stream_offset + cur->len, body->body_parsed);
-
-        if (cur->stream_offset >= body->body_inspected) {
-            break;
-        }
+		/*****************dt  begin**********************/
+        //if (cur->stream_offset >= body->body_inspected) {
+            //break;
+        //}
+		/*****************dt  end***********************/
 
         body->first = next;
         if (body->last == cur) {

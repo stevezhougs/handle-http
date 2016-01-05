@@ -49,6 +49,8 @@ inline int32_t zGetTimestamp();
 void  zGetLocalTimeEx(char tt[]);
 void zPrintRawDataFp(FILE *fp, uint8_t *buf, uint32_t buflen);
 
+void zPrintData(uint8_t *buf, uint32_t buflen);
+
 
 /* this is faster than the table lookup */
 #include <ctype.h>

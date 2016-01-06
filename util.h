@@ -24,6 +24,8 @@ extern "C" {
 
 
 #if defined(_WIN32)
+#include <windows.h>
+typedef	unsigned long u_long;
 #define SCGetThreadIdLong(...) ({ \
     u_long tid = (u_long)GetCurrentThreadId(); \
 	tid; \
@@ -74,6 +76,24 @@ MemcmpLowercase(const void *s1, const void *s2, size_t n)
 
 static inline int SCMemcmpLowercase(const void *s1, const void *s2, size_t len) {
     return MemcmpLowercase(s1, s2, len);
+}
+
+//if error return 0,else return 1
+static inline int ConvertString2Uint64(uint8_t *s, size_t len,uint64_t *d)
+{
+    uint64_t x = 0;
+	int b_len = 0,e_len = len;
+	int temp;
+	for(b_len = 0;b_len < len; ++b_len)
+	{
+		temp = (int)s[b_len];
+		if(temp > '9' || temp < '0')
+            return 0;
+		x *= 10;
+		x += temp - '0';
+	}
+	*d = x;
+    return 1;
 }
 
 

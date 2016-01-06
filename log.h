@@ -43,7 +43,7 @@ typedef enum {
 #ifdef ZPRINT
 #define zPRINT(...) zLog(LOG_DEBUG,__VA_ARGS__)
 #else
-#define zPRINT(...) 
+#define zPRINT(...)
 #endif
 
 #ifdef ZSHOWENTER
@@ -67,6 +67,7 @@ typedef enum {
 int zLogInit();
 void zLogShutdown();
 int zLogMsg(LogLevel log_level,char *msg);
+inline FILE * zGetLogFp();
 
 #ifdef	__cplusplus
 }

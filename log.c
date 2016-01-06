@@ -2,13 +2,14 @@
 #include <stdarg.h>
 
 #define zLogPath "detect-http.log"
+
 static FILE *fp = NULL;
 static zlog_show log_show = ZWRITE;
 
 #define MAX_LOG_MSG_LEN 2048
 
 #if defined(_WIN32)
-#define snprintf _snprintf 
+#define snprintf _snprintf
 #endif
 
 int zLogInit()
@@ -16,7 +17,7 @@ int zLogInit()
 #ifdef ZSHOW_LOG
         log_show = ZSHOW;
 		return 0;
-#else  
+#else
 	#ifdef ZWRITESHOW_LOG
         log_show = ZWRITESHOW;
 	#endif
@@ -26,25 +27,25 @@ int zLogInit()
 		return -1;
 	else
 		return 0;
-#endif	
+#endif
 }
 void zLogShutdown()
 {
 	if(fp != NULL)
-		fclose(fp);	
+		fclose(fp);
 	fp = NULL;
 }
 
 static inline void zPrintToStream(FILE *fd, char *msg)
 {
 	if (fprintf(fd, "%s", msg) < 0)
-		printf("fprintf error\n");	
+		printf("fprintf error\n");
 	fflush(fd);
 	return;
 }
 int zLogMsg(LogLevel log_level,char *msg)
 {
-	//if(NULL == fp) 
+	//if(NULL == fp)
 		//return -1;
 	char *temp = msg;
 	int len = strlen(msg);
@@ -67,7 +68,7 @@ int zLogMsg(LogLevel log_level,char *msg)
 			zPrintToStream(fp,msg);
 			break;
 		default:
-            break;	
+            break;
 	}
 	return 0;
 	/*
@@ -110,8 +111,14 @@ int zLogMsg(LogLevel log_level,char *msg)
 				_sc_log_msg[len] = '\n';\
                 _sc_log_msg[len + 1] = '\0';\
                 printf(_sc_log_msg);\
-                
+
 	va_end (args);
-*/	
+*/
 }
 
+inline FILE * zGetLogFp()
+{
+	if(NULL == fp)
+		fp = fopen(zLogPath,"a+");
+    return fp;
+}

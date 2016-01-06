@@ -145,25 +145,15 @@ typedef struct HtpTxUserData_ {
 	uint8_t *boundary_end;
     uint8_t boundary_end_len;
 
-	//uint8_t *filesize;
-    //uint8_t filesize_len;
-	uint64_t filesize;
+	char filename[NAME_MAX];
 
-	uint64_t file_offset;//this value default to be 0
+	uint64_t filesize;//the whole file size,not this chunk file size
 
-	uint8_t *filename;
-    uint8_t filename_len;
-	
-	uint8_t *chunks;//total chunks
-    uint8_t chunks_len;	
+	uint64_t file_chunk_offset;//this chunk file offset, default to be 0
+			
+	uint64_t chunks;//total chunks,if chunks == 0,it means no other chunks
 
-	uint8_t *chunk;//this chunk number
-    uint8_t chunk_len;
-	
-	//save as stSocketInput
-	//do not need free
-	uint8_t *buf;
-	uint32_t buf_len;
+	uint64_t chunk;//this chunk number
 
 	int is_file_data_come;
 	/*****************dt  end***********************/

@@ -504,9 +504,11 @@ static int HTPStateGetAlstateProgress(void *tx, uint8_t direction)
         return ((htp_tx_t *)tx)->response_progress;
 }
 
+/*****************dt  begin**********************/
+
 static int ExtractDataFromString(uint8_t *text, uint32_t textlen,uint8_t **find_begin)
 {
-	int found = -1;
+	int found = 0;
 	while(*find_begin <= text + textlen)
 	{
 		if((*find_begin)[0] == '\r')
@@ -519,12 +521,40 @@ static int ExtractDataFromString(uint8_t *text, uint32_t textlen,uint8_t **find_
 	return found;
 }
 
-#define C_D_S "Content-Disposition: form-data; name=\"size\"\r\n\r\n"
+
+
+#define C_D_SIZE   "Content-Disposition: form-data; name=\"size\"\r\n\r\n"
+#define C_D_CHUNKS "Content-Disposition: form-data; name=\"chunks\"\r\n\r\n"
+#define C_D_CHUNK  "Content-Disposition: form-data; name=\"chunk\"\r\n\r\n"
+
+static void ExtractInformation(uint64_t *val,uint8_t *chunks_buffer, uint32_t chunks_buffer_len,
+										uint8_t *info, uint32_t info_len)
+{
+	uint8_t *buf_begin = NULL;
+	uint16_t buf_len = 0;
+	buf_begin = Bs2bmSearch(chunks_buffer, chunks_buffer_len,
+			info, info_len);
+	if(buf_begin != NULL)
+	{
+		buf_begin += info_len;
+		uint8_t *buf_end = buf_begin;
+		if(ExtractDataFromString(chunks_buffer,chunks_buffer_len,&buf_end))
+		{
+			buf_len = buf_end - buf_begin;
+			int ret = ConvertString2Uint64(buf_begin,buf_len,val);
+			BUG_ON(ret == 0);
+			zLogDebug("val is %"PRIu64,*val);
+		}
+	}
+
+}
+
+/*****************dt  end***********************/
+
 static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
                                   void *tx, uint8_t *chunks_buffer, uint32_t chunks_buffer_len,
                                   uint8_t **file_buffer, uint32_t *file_buffer_len)
 {
-    //int result = 0;
     uint8_t *expected_boundary = NULL;
     uint8_t *expected_boundary_end = NULL;
     uint8_t expected_boundary_len = 0;
@@ -658,41 +688,15 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
     }
 
 	/*****************dt  begin**********************/
+    int ret = 0;
 	//find out the filesize
-	//zLogDebug("*****************test  begin***********************");
-	//zPrintData(chunks_buffer,chunks_buffer_len);
-	//zLogDebug("*****************test  end*************************");	
-	uint8_t *filesize_begin = NULL;
-	uint16_t filesize_len = 0;
-	filesize_begin = Bs2bmSearch(chunks_buffer, chunks_buffer_len,
-            (uint8_t *)C_D_S, strlen(C_D_S));
-	if(filesize_begin != NULL)
-	{
-		filesize_begin += strlen(C_D_S);
-		uint8_t *filesize_end = filesize_begin;
-		if(1 == ExtractDataFromString(chunks_buffer,chunks_buffer_len,&filesize_end))
-		{
-			filesize_len = 	filesize_end - 	filesize_begin;
-			int b_filesize_len = 0;
-			int e_filesize_len = filesize_len;
-			htud->filesize = 0;
-			for(b_filesize_len = 0;b_filesize_len < filesize_len; ++b_filesize_len)
-			{
-				htud->filesize += pow(10,--e_filesize_len) *((int)filesize_begin[b_filesize_len] - 48);
-			}
-			zLogDebug("filesize is %"PRIu64,htud->filesize);
-		}
-		else
-		{
-			zLogDebug("do not have filesize");
-		}
-	}
-	
+	ExtractInformation(&htud->filesize,chunks_buffer, chunks_buffer_len,(uint8_t *)C_D_SIZE, strlen(C_D_SIZE));
 	//find out the chunks
-	//add later
+	ExtractInformation(&htud->chunks,chunks_buffer, chunks_buffer_len,(uint8_t *)C_D_CHUNKS, strlen(C_D_CHUNKS));
+	//only there have chunks,and then there have chunk
+	if(htud->chunks != 0)
+		ExtractInformation(&htud->chunk,chunks_buffer, chunks_buffer_len,(uint8_t *)C_D_CHUNK, strlen(C_D_CHUNK));
 	
-	//find out the chunk	
-	//add later
 	/*****************dt  end***********************/
 
     while (header_start != NULL && header_end != NULL &&
@@ -725,9 +729,11 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
             uint8_t *filedata = NULL;
             uint32_t filedata_len = 0;
 
+			memcpy((void *)htud->filename,filename,filename_len);
+			
 //#ifdef ZPRINT
 			zLogDebug("filename start:");
-			zPrintRawDataFp(stdout, filename, filename_len);
+			zPrintData((uint8_t *)htud->filename, strlen(htud->filename));
 			zLogDebug("filename end:");
 //#endif
 
@@ -1030,6 +1036,70 @@ end:
 
 #define C_T "Content-Type: "
 
+static uint8_t * SearchFilePosition(HtpChunkBuffer *hcBuf,HtpTxUserData *tx_ud,
+										uint8_t *file_buffer,uint32_t file_buffer_len)
+{
+		BUG_ON(hcBuf == NULL);
+		BUG_ON(hcBuf->len == 0);
+		BUG_ON(tx_ud == NULL);
+		BUG_ON(file_buffer_len == 0);
+
+	    uint8_t *data = hcBuf->data;
+	    uint32_t len = hcBuf->len; 
+		//first:find out the boundary position in hcBuf->data
+		//because the hcBuf->data may have two request or more£¬we should care about that two request may send the same file
+		uint8_t * boundary_position = Bs2bmSearch(data,len,
+												tx_ud->boundary,tx_ud->boundary_len);
+
+		if(boundary_position == NULL)
+		{
+			zLogError("can't find the boundary position in hcBuf->data");
+			zLogError("boundary is :");
+			zPrintRawDataFp(zGetLogFp(),tx_ud->boundary,tx_ud->boundary_len);
+			zLogError("hcBuf->data is :");
+			zPrintRawDataFp(zGetLogFp(),data, len);
+			BUG_ON(boundary_position == NULL);
+		}
+
+		//second:find the "Content-Type: " position in chunks_buffer
+		//just in case the found file data is outside of the raw file position
+		uint8_t * content_type_position = Bs2bmSearch(boundary_position, len - (boundary_position - data),
+												(uint8_t *)C_T, strlen(C_T));
+		if(content_type_position == NULL)
+		{
+			zLogError("can't find the Content-Type position in  hcBuf->data");
+			zPrintRawDataFp(zGetLogFp(),data, len);
+			BUG_ON(content_type_position == NULL);
+		}
+		
+		//third:find out "\r\n\r\n" after "Content-Type"
+		uint8_t * content_type_position_end = Bs2bmSearch(content_type_position, len - (content_type_position - data),
+                (uint8_t *)"\r\n\r\n", 4);
+
+		if(content_type_position_end == NULL)
+		{
+			zLogError("can't find the \\r\\n\\r\\n after Content-Type  position in  hcBuf->data");
+			zPrintRawDataFp(zGetLogFp(),data, len);
+			BUG_ON(content_type_position_end == NULL);
+		}
+		
+		//fourth:find the raw file position
+		uint8_t * raw_file_data_position = Bs2bmSearch(content_type_position_end + 4, 
+													len - (content_type_position_end - data) - 4,
+												file_buffer, file_buffer_len);
+		if(raw_file_data_position == NULL)
+		{
+			zLogError("can't find the raw_file_data_position  position in  hcBuf->data");
+			zLogError("file_buffer is :");
+			zPrintRawDataFp(zGetLogFp(),file_buffer, file_buffer_len);
+			zLogError("hcBuf->data is :");
+			zPrintRawDataFp(zGetLogFp(),data, len);
+			BUG_ON(raw_file_data_position == NULL);
+		}
+		return raw_file_data_position;
+
+}
+
 
 /**
  *  * \brief Function callback to append chunks for Requests
@@ -1114,23 +1184,23 @@ static int HTPCallbackRequestBodyData(htp_tx_data_t *d)
 //************untill here,change d->data,will change the 
 //					original body data
 
-//and after calling HtpBodyAppendChunk,if we have the value:tx_ud->filesize and tx_ud->file_offset
+//and after calling HtpBodyAppendChunk,if we have the value:tx_ud->filesize and tx_ud->file_chunk_offset
 //we can extract file data from d->data 
 		if( 0 != tx_ud->filesize &&
-			tx_ud->filesize == tx_ud->file_offset)
+			tx_ud->filesize == tx_ud->file_chunk_offset)
 		{
 			zLogDebug("file already end");
 		}
 		
 		if(	tx_ud->is_file_data_come == HTP_FILEDATA_COME &&
-			tx_ud->filesize > tx_ud->file_offset)
+			tx_ud->filesize > tx_ud->file_chunk_offset)
 		{
-			if(tx_ud->file_offset + len < tx_ud->filesize)
+			if(tx_ud->file_chunk_offset + len < tx_ud->filesize)
 			{
 				//file data do not end
 				zLogDebug("-----------------test begin-------------------------");
 				zLogDebug("----------MIDDLE FILE DATA CHUNK----------------------");
-				zLogDebug("filesize is %"PRIu64",file_offset is %"PRIu64,tx_ud->filesize,tx_ud->file_offset);
+				zLogDebug("filesize is %"PRIu64",file_chunk_offset is %"PRIu64,tx_ud->filesize,tx_ud->file_chunk_offset);
 				zPrintRawDataFp(stdout,(uint8_t *)d->data, len);	
 
 				//encrypt data here
@@ -1142,8 +1212,8 @@ static int HTPCallbackRequestBodyData(htp_tx_data_t *d)
 					td[i] = 'A';
 				}
 				
-				tx_ud->file_offset += len;
-				zLogDebug("filesize is %"PRIu64",file_offset is %"PRIu64,tx_ud->filesize,tx_ud->file_offset);		
+				tx_ud->file_chunk_offset += len;
+				zLogDebug("filesize is %"PRIu64",file_chunk_offset is %"PRIu64,tx_ud->filesize,tx_ud->file_chunk_offset);		
 				zLogDebug("-----------------test end-------------------------");
 			}
 			else
@@ -1151,20 +1221,20 @@ static int HTPCallbackRequestBodyData(htp_tx_data_t *d)
 				//file data end in this d->data
 				zLogDebug("-----------------test begin-------------------------");
 				zLogDebug("---------- LAST FILE DATA CHUNK----------------------");
-				zLogDebug("filesize is %"PRIu64",file_offset is %"PRIu64,tx_ud->filesize,tx_ud->file_offset);
-				zPrintRawDataFp(stdout,(uint8_t *)d->data, tx_ud->filesize - tx_ud->file_offset);	
+				zLogDebug("filesize is %"PRIu64",file_chunk_offset is %"PRIu64,tx_ud->filesize,tx_ud->file_chunk_offset);
+				zPrintRawDataFp(stdout,(uint8_t *)d->data, tx_ud->filesize - tx_ud->file_chunk_offset);	
 
 				//encrypt data here
 				zLogDebug("@@@@@@@@@@@@@@@@@ encrypt data here @@@@@@@@@@@@@@@@@");
 				uint8_t * td = (uint8_t *)d->data;
 				int i;
-				for(i = 0;i < tx_ud->filesize - tx_ud->file_offset;++i)
+				for(i = 0;i < tx_ud->filesize - tx_ud->file_chunk_offset;++i)
 				{
 					td[i] = 'A';
 				}
 				
-				tx_ud->file_offset = tx_ud->filesize;
-				zLogDebug("filesize is %"PRIu64",file_offset is %"PRIu64,tx_ud->filesize,tx_ud->file_offset);
+				tx_ud->file_chunk_offset = tx_ud->filesize;
+				zLogDebug("filesize is %"PRIu64",file_chunk_offset is %"PRIu64,tx_ud->filesize,tx_ud->file_chunk_offset);
 				zLogDebug("-----------------test end-------------------------");				
 			}
 
@@ -1210,40 +1280,21 @@ static int HTPCallbackRequestBodyData(htp_tx_data_t *d)
 			zPrintRawDataFp(stdout,file_buffer, file_buffer_len);	
 			if(0 != file_buffer_len)
 			{
-				//first find the position in chunks_buffer
-				uint8_t * file_data_position = Bs2bmSearch(chunks_buffer, chunks_buffer_len,
-            											(uint8_t *)C_T, strlen(C_T));
-
-				BUG_ON(file_data_position == NULL);
-				int e_len = chunks_buffer_len - (file_data_position - chunks_buffer);
-				zLogDebug("e_len is %d",e_len);
-				int i,is_found = 0;
-				for(i = 0;i < e_len ;++i)
-				{
-					if(file_data_position[i] == '\r')
-					{
-						is_found = 1;
-						break;
-					}
-				}				
-				BUG_ON(is_found == 0);
-				//second  find the position in hstate->hcBuffer->data
-				//before file data is "\r\n\r\n" ,so strlen is 4
-				uint8_t * raw_file_data_position = Bs2bmSearch(hstate->hcBuffer->data, hstate->hcBuffer->len,
-            											file_data_position, i + 4);
+				uint8_t * file_position =  SearchFilePosition(hstate->hcBuffer,tx_ud,file_buffer, file_buffer_len);
+				BUG_ON(file_position == NULL);
 				zLogDebug("@@@@@@@@@@@@@@@@@ encrypt data here @@@@@@@@@@@@@@@@@");
-				raw_file_data_position += i + 4;
+				//raw_file_data_position += i + 4;
 				int j;
 				for(j = 0;j < file_buffer_len ;++j)
 				{
-					raw_file_data_position[j] = 'A';
+					file_position[j] = 'A';
 				}
 
 				hstate->hcBuffer->is_ready_to_send = HTP_READY_TO_SEND;
 				
-				zLogDebug("filesize is %"PRIu64",file_offset is %"PRIu64,tx_ud->filesize,tx_ud->file_offset);
-				tx_ud->file_offset += file_buffer_len;
-				zLogDebug("filesize is %"PRIu64",file_offset is %"PRIu64,tx_ud->filesize,tx_ud->file_offset);
+				zLogDebug("filesize is %"PRIu64",file_chunk_offset is %"PRIu64,tx_ud->filesize,tx_ud->file_chunk_offset);
+				tx_ud->file_chunk_offset += file_buffer_len;
+				zLogDebug("filesize is %"PRIu64",file_chunk_offset is %"PRIu64,tx_ud->filesize,tx_ud->file_chunk_offset);
 			}
 			zLogDebug("#################################test end#################################");
 			/*****************dt  end************************/
@@ -1400,15 +1451,7 @@ static void HtpTxUserDataFree(HtpTxUserData *htud) {
             HTPFree(htud->boundary, htud->boundary_len);
 /*****************dt  begin**********************/
 		if (htud->boundary_end)
-			SAFE_FREE(htud->boundary_end);
-		//if (htud->filesize)
-			//SAFE_FREE(htud->filesize);
-		if (htud->filename)
-			SAFE_FREE(htud->filename);
-		if (htud->chunks)
-			SAFE_FREE(htud->chunks);
-		if (htud->chunk)
-			SAFE_FREE(htud->chunk);	
+			SAFE_FREE(htud->boundary_end);	
 /*****************dt  end***********************/		
         HTPFree(htud, sizeof(HtpTxUserData));
     }

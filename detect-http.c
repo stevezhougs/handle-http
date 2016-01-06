@@ -543,7 +543,6 @@ static void ExtractInformation(uint64_t *val,uint8_t *chunks_buffer, uint32_t ch
 			buf_len = buf_end - buf_begin;
 			int ret = ConvertString2Uint64(buf_begin,buf_len,val);
 			BUG_ON(ret == 0);
-			zLogDebug("val is %"PRIu64,*val);
 		}
 	}
 
@@ -690,12 +689,15 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
 	/*****************dt  begin**********************/
 	//find out the filesize
 	ExtractInformation(&htud->filesize,chunks_buffer, chunks_buffer_len,(uint8_t *)C_D_SIZE, strlen(C_D_SIZE));
+	zLogDebug("htud->filesize is %"PRIu64,htud->filesize);
 	//find out the chunks
 	ExtractInformation(&htud->chunks,chunks_buffer, chunks_buffer_len,(uint8_t *)C_D_CHUNKS, strlen(C_D_CHUNKS));
+	zLogDebug("htud->chunks is %"PRIu64,htud->chunks);
 	//only there have chunks,and then there have chunk
-	if(htud->chunks != 0)
+	if(htud->chunks != 0){
 		ExtractInformation(&htud->chunk,chunks_buffer, chunks_buffer_len,(uint8_t *)C_D_CHUNK, strlen(C_D_CHUNK));
-	
+		zLogDebug("htud->chunk is %"PRIu64,htud->chunk);
+	}
 	/*****************dt  end***********************/
 
     while (header_start != NULL && header_end != NULL &&

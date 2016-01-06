@@ -688,7 +688,6 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
     }
 
 	/*****************dt  begin**********************/
-    int ret = 0;
 	//find out the filesize
 	ExtractInformation(&htud->filesize,chunks_buffer, chunks_buffer_len,(uint8_t *)C_D_SIZE, strlen(C_D_SIZE));
 	//find out the chunks

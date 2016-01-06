@@ -82,8 +82,7 @@ static inline int SCMemcmpLowercase(const void *s1, const void *s2, size_t len) 
 static inline int ConvertString2Uint64(uint8_t *s, size_t len,uint64_t *d)
 {
     uint64_t x = 0;
-	int b_len = 0,e_len = len;
-	int temp;
+	int b_len, temp;
 	for(b_len = 0;b_len < len; ++b_len)
 	{
 		temp = (int)s[b_len];

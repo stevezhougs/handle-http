@@ -142,12 +142,17 @@ typedef struct HtpTxUserData_ {
     uint8_t boundary_len;
 	
 	/*****************dt  begin**********************/
-	uint8_t *boundary_end;
-    uint8_t boundary_end_len;
+	uint8_t *expected_boundary;
+	uint8_t  expected_boundary_len;
+
+	uint8_t *expected_boundary_end;
+    uint8_t  expected_boundary_end_len;
 
 	char filename[NAME_MAX];
 
 	uint64_t filesize;//the whole file size,not this chunk file size
+
+	uint64_t filesize_chunk;//this chunk file size,if chunks is 0,then filesize_chunk is same as filesize
 
 	uint64_t file_chunk_offset;//this chunk file offset, default to be 0
 			

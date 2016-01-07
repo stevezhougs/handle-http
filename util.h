@@ -78,7 +78,7 @@ static inline int SCMemcmpLowercase(const void *s1, const void *s2, size_t len) 
     return MemcmpLowercase(s1, s2, len);
 }
 
-//if error return 0,else return 1
+//if uint8_t *s = "1234",then *d = 1234; error return 0,else return 1
 static inline int ConvertString2Uint64(uint8_t *s, size_t len,uint64_t *d)
 {
     uint64_t x = 0;

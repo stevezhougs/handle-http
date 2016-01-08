@@ -149,27 +149,25 @@ error:
  * \param body pointer to the HtpBody holding the list
  * \retval none
  */
- /*
+ 
 void HtpBodyPrint(HtpBody *body)
 {
-    if (SCLogDebugEnabled()||1) {
-        SCEnter();
 
-        if (body->first == NULL)
-            return;
+    if (body->first == NULL)
+        return;
 
-        HtpBodyChunk *cur = NULL;
-        SCLogDebug("--- Start body chunks at %p ---", body);
-        printf("--- Start body chunks at %p ---\n", body);
-        for (cur = body->first; cur != NULL; cur = cur->next) {
-            SCLogDebug("Body %p; data %p, len %"PRIu32, body, cur->data, (uint32_t)cur->len);
-            printf("Body %p; data %p, len %"PRIu32"\n", body, cur->data, (uint32_t)cur->len);
-            PrintRawDataFp(stdout, (uint8_t*)cur->data, cur->len);
-        }
-        SCLogDebug("--- End body chunks at %p ---", body);
+    HtpBodyChunk *cur = NULL;
+    SCLogDebug("--- Start body chunks at %p ---", body);
+    printf("--- Start body chunks at %p ---\n", body);
+    for (cur = body->first; cur != NULL; cur = cur->next) {
+        SCLogDebug("Body %p; data %p, len %"PRIu32, body, cur->data, (uint32_t)cur->len);
+        printf("Body %p; data %p, len %"PRIu32"\n", body, cur->data, (uint32_t)cur->len);
+        zPrintRawDataFp(stdout, (uint8_t*)cur->data, cur->len);
     }
+    SCLogDebug("--- End body chunks at %p ---", body);
+
 }
-*/
+
 /**
  * \brief Free the information held in the request body
  * \param body pointer to the HtpBody holding the list

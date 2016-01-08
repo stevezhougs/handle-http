@@ -9,7 +9,8 @@
 void test_file();
 void test_post();
 void test_put();
-void test_multipart();
+void test_response_multipart();
+void test_post_multipart();
 
 int main(int argc,char *argv[])
 {
@@ -20,7 +21,7 @@ int main(int argc,char *argv[])
 	}
 	zLogDebug("Start");
 
-	test_put();
+	test_post_multipart();
 	
 	zLogDebug("Exit");
 	zLogShutdown();	
@@ -34,6 +35,30 @@ int main(int argc,char *argv[])
 #define BUFFER_SIZE 200
 
 FILE * g_pFileOutput = NULL;
+
+void test_response_multipart()
+{
+    uint8_t httpbuf1[] =
+        "GET /abc%2fdef HTTP/1.1\r\nHost: www.domain.ltd\r\n\r\n";
+    uint32_t httplen1 = sizeof(httpbuf1) - 1; /* minus the \0 */
+
+	uint8_t http_res_buf1[] =
+		"HTTP/1.1 200 OK\r\n"
+		"Content-Type: multipart/x-mixed-replace; boundary=--4646a1160058e09bed25\r\n"
+		"Server: Microsoft-HTTPAPI/2.0\r\n"
+		"Date: Fri, 17 May 2013 08:20:42 GMT --4646a1160058e09bed25  Content-Type: text/plain\r\n"
+		"Content-Length: 28\r\n"
+		"\r\n"
+		"Fortune doesn't favor fools. --4646a1160058e09bed25  Content-Type: text/plain\r\n"
+		"Content-Length: 65\r\n"
+		"\r\n"
+		"Watch your mouth kid, or you'll find yourself respawning at home! --4646a1160058e09bed25\r\n";
+	uint32_t http_res_len1 = sizeof(http_res_buf1) - 1;
+
+	
+ 
+
+}
 
 void test_file()
 {
@@ -120,13 +145,14 @@ void test_file()
 
 void test_post()
 {
-    uint8_t http_req_buf1[] = "POST /filename HTTP/1.1\r\n"
-                         "Host: www.server.lan\r\n"
-                         "Content-Length: 11\r\n"
-                         "\r\nFI";
+    uint8_t http_req_buf1[] = "POST /filenam";
     uint32_t http_req_len1 = sizeof(http_req_buf1) - 1; /* minus the \0 */
 	
-    uint8_t http_req_buf2[] = "LECONTENT";
+    uint8_t http_req_buf2[] = 
+					     "e HTTP/1.1\r\n"
+                         "Host: www.server.lan\r\n"
+                         "Content-Length: 11\r\n"
+                         "\r\nFILECONTENT";
     uint32_t http_req_len2 = sizeof(http_req_buf2) - 1; /* minus the \0 */
 
 
@@ -255,36 +281,70 @@ void test_put()
 		"------WebKitFormBoundaryqPEJVlkco56jW0IM--\r\n"
 #endif
 
-void test_multipart()
+void test_post_multipart()
 {
+	DTInitHTTP();
 	
-	//--------------------------------------------------------------------------------------------------------- 
+	stSocketInput ssInput;
+	memset(&ssInput,0,sizeof(ssInput));
+	                         
+    uint8_t httpbuf1_1_2m[] = 
+						 "POST /upload.cgi HTTP/1.1\r\n"
+                         "Host: www.server.lan\r\n"
+                         "Content-Type: multipart/form-data; boundary=---------------------------277531038314945\r\n"
+                         "Content-Length: 387\r\n"
+                         "\r\n"
+                         "-----------------------------277531038314945\r\n"
+                         "Content-Disposition: form-data; name=\"uploadfile_0\"; filename=\"somepicture1.jpg\"\r\n"
+                         "Content-Type: image/jpeg\r\n"
+                         "\r\n"
+                         "filecont";
+    uint32_t httplen1_1_2m = sizeof(httpbuf1_1_2m) - 1; /* minus the \0 */
+
+	ssInput.buf = httpbuf1_1_2m;
+	ssInput.buf_len = httplen1_1_2m;
+	DTRequestData(&ssInput);
+	zLogDebug("After the httpbuf1_1_2m,ssInput.htp_state is:%p",ssInput.htp_state);
 	
-		uint8_t httpbuf_get[] =
-			"GET https:";
-		uint32_t http_len_get = sizeof(httpbuf_get) - 1;
+    uint8_t httpbuf2_1_2m[] = 
+						 "entA\r\n"
+                         "-----------------------------277531038314945\r\n"
+						 "Content-Disposition: form-data; name=\"uploadfile_1\"; filename=\"somepicture2.jpg\"\r\n"
+                         "Content-Type: image/jpeg\r\n"
+                         "\r\n"
+                         "FILECONTENT\r\n"
+       					 "-----------------------------277531038314945--\r\n";
+	uint32_t httplen2_1_2m = sizeof(httpbuf2_1_2m) - 1; /* minus the \0 */
+
+	ssInput.buf = httpbuf2_1_2m;
+	ssInput.buf_len = httplen2_1_2m;
+	DTRequestData(&ssInput);
+	zLogDebug("After the httpbuf2_1_2m,ssInput.htp_state is:%p",ssInput.htp_state);
+	//---------------------------------------------------------------------------------------------------------
+
+	/** \test first multipart part contains file but doesn't end in first chunk */
+
+		uint8_t httpbuf1_2_2m[] = "POST /upload.cgi HTTP/1.1\r\n"
+		                 "Host: www.server.lan\r\n"
+		                 "Content-Type: multipart/form-data; boundary=---------------------------277531038314945\r\n"
+		                 "Content-Length: 544\r\n"
+		                 "\r\n"
+		                 "-----------------------------277531038314945\r\n"
+		                 "Content-Disposition: form-data; name=\"uploadfile_0\"; filename=\"somepicture1.jpg\"\r\n"
+		                 "Content-Type: image/jpeg\r\n"
+		                 "\r\n"
+		                 "filecontent\r\n"
+		                 "-----------------------------27753103831494";
+		uint32_t httplen1_2_2m = sizeof(httpbuf1_2_2m) - 1; /* minus the \0 */
 		
-		uint8_t httpbuf_get_1[] =
-			"//192.168.1.26/index.php?explorer/pathList&path=%2F HTTP/1.1\r\n";
-		uint32_t http_len_get_1 = sizeof(httpbuf_get_1) - 1;
-	
-		uint8_t httpbuf_get_2[] =
-			"Host: 192.168.1.26\r\n"
-			"Connection: keep-alive\r\n"
-			"Accept: application/json, text/javascript, */*; q=0.01\r\n"
-			"X-Requested-With: XMLHttpRequest\r\n"
-			"User-Agent: Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.85 Safari/537.36\r\n"
-			"Referer: https://192.168.1.26/index.php\r\n"
-			"Accept-Encoding: gzip, deflate, sdch\r\n"
-			"Accept-Language: zh-CN,zh;q=0.8\r\n"
-			"Cookie: user_language=zh_CN; PHPSESSID=ntslsa1701ilbbs6d3d6eiurm2"
-			"\r\n\r\n";
-		uint32_t http_len_get_2 = sizeof(httpbuf_get_2) - 1;
-	
-	
+		uint8_t httpbuf2_2_2m[] = "5\r\nContent-Disposition: form-data; name=\"uploadfile_1\"; filename=\"somepicture2.jpg\"\r\n"
+		                 "Content-Type: image/jpeg\r\n"
+		                 "\r\n"
+		                 "FILECONTENT\r\n"
+		"-----------------------------277531038314945--\r\n";
+		uint32_t httplen2_2_2m = sizeof(httpbuf2_2_2m) - 1; /* minus the \0 */
+	//--------------------------------------------------------------------------------------------------------- 
 			
-	//--------------------------------------------------------------------------------------------------------- 
-		
 		uint8_t http_buf_complete[] =
 			"POST https://192.168.1.26/index.php?explorer/fileUpload&path=%2F HTTP/1.1\r\n"
 			"Host: 192.168.1.26\r\n"
@@ -527,30 +587,38 @@ void test_multipart()
 			"abcdef";
 		uint32_t http_res_len1 = sizeof(http_res_buf1) - 1;
 		
-		DTInitHTTP();
-	
-		stSocketInput ssInput;
-		memset(&ssInput,0,sizeof(ssInput));
+
+
+		//ssInput.buf = httpbuf2_1_2m;
+		//ssInput.buf_len = httplen2_1_2m;
+		//DTRequestData(&ssInput);
+		//zLogDebug("After the httpbuf2_1_2m,ssInput.htp_state is:%p",ssInput.htp_state);
+
 #if 0
 	
-		ssInput.buf = httpbuf_get;
-		ssInput.buf_len = http_len_get;
+		ssInput.buf = uc_http_req_buf1;
+		ssInput.buf_len = uc_http_req_len1;
 		DTRequestData(&ssInput);
 		zLogDebug("After the httpbuf_get,ssInput.htp_state is:%p",ssInput.htp_state);
 	
 	
-		ssInput.buf = httpbuf_get_1;
-		ssInput.buf_len = http_len_get_1;
+		ssInput.buf = uc_http_req_buf1_1;
+		ssInput.buf_len = uc_http_req_len1_1;
 		DTRequestData(&ssInput);
 		zLogDebug("After the httpbuf_get_1,ssInput.htp_state is:%p",ssInput.htp_state);
 	
-		ssInput.buf = httpbuf_get_2;
-		ssInput.buf_len = http_len_get_2;
+		ssInput.buf = uc_http_req_buf1_2;
+		ssInput.buf_len = uc_http_req_len1_2;
+		DTRequestData(&ssInput);
+		zLogDebug("After the httpbuf_get_1,ssInput.htp_state is:%p",ssInput.htp_state); 
+
+		ssInput.buf = uc_http_req_buf1_3;
+		ssInput.buf_len = uc_http_req_len1_3;
 		DTRequestData(&ssInput);
 		zLogDebug("After the httpbuf_get_1,ssInput.htp_state is:%p",ssInput.htp_state); 
 #endif
 	
-	
+#if 0
 	
 		ssInput.buf = http_buf_complete;
 		ssInput.buf_len = http_len_complete;
@@ -561,9 +629,6 @@ void test_multipart()
 		ssInput.buf_len = http_len_complete_1;
 		DTRequestData(&ssInput);
 		zLogDebug("After the http_buf_complete_1,ssInput.htp_state is:%p",ssInput.htp_state);
-	
-#if 0
-	
 	
 		ssInput.buf = uc_http_req_buf1;
 		ssInput.buf_len = uc_http_req_len1;
@@ -604,11 +669,13 @@ void test_multipart()
 		DTResponseData(&ssInput);
 		zLogDebug("After the first res,ssInput.htp_state is:%p",ssInput.htp_state);
 	
-		DTResponseData(&ssInput);
-		zLogDebug("After the second res,ssInput.htp_state is:%p",ssInput.htp_state);
+		//DTResponseData(&ssInput);
+		//zLogDebug("After the second res,ssInput.htp_state is:%p",ssInput.htp_state);
 		
 		DTFreeHTTPState(&ssInput);
+		return;
 error:
 		printf("error!\n");
+		return;
 
 }

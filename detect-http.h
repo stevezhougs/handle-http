@@ -53,6 +53,12 @@ enum {
     HTP_BODY_REQUEST_PUT,
 };
 
+enum {
+    HTP_BODY_RESPONSE_NONE = 0,
+    HTP_BODY_RESPONSE_MULTIPART, /* POST, MP */
+};
+
+
 #define HTP_READY_TO_SEND       0x01    /**< ready to send this buffer */
 
 /*****************dt  begin**********************/
@@ -65,7 +71,7 @@ struct HtpChunkBuffer_ {
 typedef struct HtpChunkBuffer_ HtpChunkBuffer;
 /*****************dt  end***********************/
 
-
+#if 0
 /** Need a linked list in order to keep track of these */
 typedef struct HTPCfgRec_ {
     htp_cfg_t           *cfg;
@@ -85,7 +91,7 @@ typedef struct HTPCfgRec_ {
     int                 randomize;
     int                 randomize_range;
 } HTPCfgRec;
-
+#endif
 
 /** Struct used to hold chunks of a body on a request */
 struct HtpBodyChunk_ {
@@ -135,32 +141,54 @@ typedef struct HtpTxUserData_ {
 
     //AppLayerDecoderEvents *decoder_events;          /**< per tx events */
 
-    /** Holds the boundary identificator string if any (used on
-     *  multipart/form-data only)
-     */
-    uint8_t *boundary;
-    uint8_t boundary_len;
-	
 	/*****************dt  begin**********************/
-	uint8_t *expected_boundary;
-	uint8_t  expected_boundary_len;
+	//request
+    uint8_t *request_boundary;
+    uint8_t  request_boundary_len;
+	
+	uint8_t *request_expected_boundary;
+	uint8_t  request_expected_boundary_len;
 
-	uint8_t *expected_boundary_end;
-    uint8_t  expected_boundary_end_len;
+	uint8_t *request_expected_boundary_end;
+    uint8_t  request_expected_boundary_end_len;
 
-	char filename[NAME_MAX];
+	char request_filename[NAME_MAX];
 
-	uint64_t filesize;//the whole file size,not this chunk file size
+	uint64_t request_filesize;//the whole file size,not this chunk file size
 
-	uint64_t filesize_chunk;//this chunk file size,if chunks is 0,then filesize_chunk is same as filesize
+	uint64_t request_filesize_chunk;//this chunk file size,if chunks is 0,then filesize_chunk is same as filesize
 
-	uint64_t file_chunk_offset;//this chunk file offset, default to be 0
+	uint64_t request_file_chunk_offset;//this chunk file offset, default to be 0
 			
-	uint64_t chunks;//total chunks,if chunks == 0,it means no other chunks
+	uint64_t request_chunks;//total chunks,if chunks == 0,it means no other chunks
 
-	uint64_t chunk;//this chunk number
+	uint64_t request_chunk;//this chunk number
 
-	int is_file_data_come;
+	int request_is_file_data_come;
+
+	//response  right now no support chunks
+    uint8_t *response_boundary;
+    uint8_t  response_boundary_len;
+
+	uint8_t *response_expected_boundary;
+	uint8_t  response_expected_boundary_len;
+
+	uint8_t *response_expected_boundary_end;
+    uint8_t  response_expected_boundary_end_len;
+
+	char response_filename[NAME_MAX];
+
+	uint64_t response_filesize;//the whole file size,not this chunk file size
+
+	//uint64_t response_filesize_chunk;//this chunk file size,if chunks is 0,then filesize_chunk is same as filesize
+
+	uint64_t response_file_chunk_offset;//this chunk file offset, default to be 0
+			
+	//uint64_t response_chunks;//total chunks,if chunks == 0,it means no other chunks
+
+	//uint64_t response_chunk;//this chunk number
+
+	int response_is_file_data_come;
 	/*****************dt  end***********************/
 
     uint8_t tsflags;
@@ -183,15 +211,16 @@ typedef struct HtpState_ {
     //Flow *f;                /**< Needed to retrieve the original flow when usin HTPLib callbacks */
     uint64_t transaction_cnt;
     uint64_t store_tx_id;
-    FileContainer *files_ts;
-    FileContainer *files_tc;
-    struct HTPCfgRec_ *cfg;
+    //FileContainer *files_ts;
+    //FileContainer *files_tc;
+    //struct HTPCfgRec_ *cfg;
     uint16_t flags;
     //uint16_t events;
     uint16_t htp_messages_offset; /**< offset into conn->messages list */
 	
 	/*****************dt  begin**********************/
-	HtpChunkBuffer *hcBuffer;
+	HtpChunkBuffer *hcBuffer_req;
+	HtpChunkBuffer *hcBuffer_res;
 	/*****************dt  end***********************/
 
 } HtpState;

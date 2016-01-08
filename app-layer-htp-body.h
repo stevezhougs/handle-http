@@ -29,7 +29,7 @@
 #define __APP_LAYER_HTP_BODY_H__
 
 int HtpBodyAppendChunk(HtpTxUserData *, HtpBody *, uint8_t *, uint32_t);
-//void HtpBodyPrint(HtpBody *);
+void HtpBodyPrint(HtpBody *);
 void HtpBodyFree(HtpBody *);
 void HtpBodyPrune(HtpBody *);
 

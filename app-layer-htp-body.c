@@ -226,12 +226,9 @@ void HtpBodyPrune(HtpBody *body)
         zLogDebug("cur->stream_offset %"PRIu64" + cur->len %u = %"PRIu64", "
                 "body->body_parsed %"PRIu64, cur->stream_offset, cur->len,
                 cur->stream_offset + cur->len, body->body_parsed);
-		/*****************dt  begin**********************/
-        //if (cur->stream_offset >= body->body_inspected) {
-            //break;
-        //}
-		/*****************dt  end***********************/
-
+        if (cur->stream_offset >= body->body_inspected) {
+            break;
+        }
         body->first = next;
         if (body->last == cur) {
             body->last = next;

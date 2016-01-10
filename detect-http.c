@@ -636,11 +636,11 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
 
 			//*file_buffer = filedata;
 			//*file_buffer_len = filedata_len;
-#ifdef ZPRINT
-            zLogDebug("FILEDATA (final chunk) START:");
+//#ifdef ZPRINT
+            zLogDebug("@@@@@@@@@@@@@@FILEDATA (final chunk) START:@@@@@@@@@@@@@@");
             zPrintRawDataFp(stdout, filedata, filedata_len);
-            zLogDebug("FILEDATA (final chunk) END:");
-#endif
+            zLogDebug("@@@@@@@@@@@@@@FILEDATA (final chunk) END:@@@@@@@@@@@@@@");
+//#endif
             /*****************dt  begin**********************/
             /*if (!(htud->tsflags & HTP_DONTSTORE)) {
                 if (HTPFileClose(hstate, filedata, filedata_len, flags,
@@ -660,11 +660,11 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
             if (chunks_buffer_len > htud->request_expected_boundary_end_len) {
                 uint8_t *filedata = chunks_buffer;
                 uint32_t filedata_len = chunks_buffer_len - htud->request_expected_boundary_len;
-#ifdef ZPRINT
-                zLogDebug("FILEDATA (part) START:");
+//#ifdef ZPRINT
+                zLogDebug("@@@@@@@@@@@@@@FILEDATA (part) START:@@@@@@@@@@@@@@");
                 zPrintRawDataFp(stdout, filedata, filedata_len);
-                zLogDebug("FILEDATA (part) END:");
-#endif
+                zLogDebug("@@@@@@@@@@@@@@FILEDATA (part) END:@@@@@@@@@@@@@@");
+//#endif
 			/*****************dt  begin**********************/
 				//*file_buffer = filedata;
 				//*file_buffer_len = filedata_len;
@@ -793,16 +793,12 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
 					/*****************dt  end***********************/		 
 					goto end;
                 }
-				zLogDebug("-----------------test begin-------------------------");
-				zLogDebug("----------------file data---------------------------");
-				SCLogDebug("filedata_len %"PRIuMAX, (uintmax_t)filedata_len);
-				zLogDebug("-----------------test end---------------------------");
                 
-#ifdef ZPRINT
-                zLogDebug("FILEDATA START:");
+//#ifdef ZPRINT
+                zLogDebug("@@@@@@@@@@@@@@FILEDATA START:@@@@@@@@@@@@@@");
                 zPrintRawDataFp(stdout, filedata, filedata_len);
-                zLogDebug("FILEDATA END:");
-#endif
+                zLogDebug("@@@@@@@@@@@@@@FILEDATA END:@@@@@@@@@@@@@@");
+//#endif
 				/*****************dt  begin**********************/
 				//a complete req will come here 
 				//*file_buffer = filedata;
@@ -875,6 +871,7 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
                     uint32_t offset = (header_end + 4) - chunks_buffer;
                     SCLogDebug("offset %u", offset);
                     htud->request_body.body_parsed += offset;
+          	   zLogDebug("@@@@@@@@@@@@@@?????????????????????@@@@@@@@@@@@@@ ");
 					/*****************dt  begin**********************/
 					#if 0
                     result = HTPFileOpen(hstate, filename, filename_len,
@@ -891,6 +888,9 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
                     filedata_len = header_next - filedata - 2;
                     SCLogDebug("filedata_len %u", filedata_len);
 					/*****************dt  begin**********************/
+  		    zLogDebug("@@@@@@@@@@@@@@FILEDATA START:@@@@@@@@@@@@@@ ");
+  		    zPrintRawDataFp(stdout, filedata, filedata_len);
+  		    zLogDebug("@@@@@@@@@@@@@@FILEDATA END:    @@@@@@@@@@@@@@");			
 					#if 0
                     result = HTPFileOpen(hstate, filename, filename_len,
                             filedata, filedata_len, hstate->transaction_cnt,

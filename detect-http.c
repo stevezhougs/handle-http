@@ -448,7 +448,6 @@ static int HTPCallbackRequestLine(htp_tx_t *tx)
 	if(tx->request_line){
 		zLogDebug("-----------------test begin-----------------------");
 		zPrintRawDataFp(stdout,bstr_ptr(tx->request_line), bstr_len(tx->request_line));
-		printf("\n");
 		zLogDebug("-----------------test end-------------------------");		
 	}
 //#endif	
@@ -466,7 +465,6 @@ static int HTPCallbackRequestHeaderData(htp_tx_data_t *tx_data)
 //#ifdef ZPRINT
 	zLogDebug("-----------------test begin-----------------------");
 	zPrintRawDataFp(stdout,tx_data->data, tx_data->len);
-	printf("\n");
 	zLogDebug("-----------------test end-------------------------");
 //#endif	
 

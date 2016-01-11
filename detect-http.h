@@ -238,6 +238,7 @@ typedef struct HtpState_ {
     uint16_t flags;
     //uint16_t events;
     uint16_t htp_messages_offset; /**< offset into conn->messages list */
+
 	
 	/*****************dt  begin**********************/
 	HtpChunkBuffer *hcBuffer_req;

@@ -127,7 +127,7 @@ int HtpBodyAppendChunk(HtpTxUserData *htud, HtpBody *body, uint8_t *data, uint32
 
         body->content_len_so_far += len;
     }
-    zLogDebug("Body %p; data %p, len %"PRIu32, body, bd->data, (uint32_t)bd->len);
+    //zLogDebug("Body %p; data %p, len %"PRIu32, body, bd->data, (uint32_t)bd->len);
 
     return 0;
 

@@ -1,3 +1,20 @@
+/* Copyright (C) 2007-2010 Open Information Security Foundation
+ *
+ * You can copy, redistribute or modify this Program under the terms of
+ * the GNU General Public License version 2 as published by the Free
+ * Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * version 2 along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ */
+
 #include "log.h"
 #include <stdarg.h>
 
@@ -6,7 +23,16 @@
 static FILE *fp = NULL;
 static zlog_show log_show = ZWRITE;
 
-#define MAX_LOG_MSG_LEN 2048
+
+zEnumCharMap log_level_map[ ] = {
+    { "<Debug>",        LOG_DEBUG},
+    { "<Info >",        LOG_INFO },
+    { "<Warn >",        LOG_WARN },
+    { "<Error>",        LOG_ERROR },
+    { "<Fatal>",        LOG_FATAL },
+    { NULL,             -1 }
+};
+
 
 #if defined(_WIN32)
 #define snprintf _snprintf
@@ -45,27 +71,43 @@ static inline void zPrintToStream(FILE *fd, char *msg)
 }
 int zLogMsg(LogLevel log_level,char *msg)
 {
-	//if(NULL == fp)
-		//return -1;
+	char ch_output[MAX_LOG_MSG_LEN] = {0};
+	const char *s = NULL;
+
+	/* no of characters_written(cw) by snprintf */
+    int cw = 0;
+
+    s = zMapEnumValueToName(log_level, log_level_map);
+    if (s != NULL)
+        cw = snprintf(ch_output, MAX_LOG_MSG_LEN,"%s%s",s," ");
+    else
+        cw = snprintf(ch_output, MAX_LOG_MSG_LEN,"%s","<-----> ");
+	if (cw < 0)
+		return -1;
+
 	char *temp = msg;
 	int len = strlen(msg);
+	if (len == LOG_MSG_LEN - 1)
+		len = LOG_MSG_LEN - 2;
 
-	if (len == SC_LOG_MAX_LOG_MSG_LEN - 1)
-        	len = SC_LOG_MAX_LOG_MSG_LEN - 2;
-
-    	temp[len] = '\n';
+    temp[len] = '\n';
    	temp[len + 1] = '\0';
+
+	cw = snprintf(ch_output + cw, MAX_LOG_MSG_LEN - cw,"%s",temp);
+	if (cw < 0)
+		return -1;
+	
 	switch(log_show)
 	{
 		case ZWRITE:
-			zPrintToStream(fp,msg);
+			zPrintToStream(fp,ch_output);
 			break;
 		case ZSHOW:
-			zPrintToStream(stdout,msg);
+			zPrintToStream(stdout,ch_output);
 			break;
 		case ZWRITESHOW:
-			zPrintToStream(stdout,msg);
-			zPrintToStream(fp,msg);
+			zPrintToStream(stdout,ch_output);
+			zPrintToStream(fp,ch_output);
 			break;
 		default:
             break;

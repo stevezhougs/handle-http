@@ -1,3 +1,20 @@
+/* Copyright (C) 2007-2010 Open Information Security Foundation
+ *
+ * You can copy, redistribute or modify this Program under the terms of
+ * the GNU General Public License version 2 as published by the Free
+ * Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * version 2 along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ */
+
 #include "common.h"
 #include "handle-http-data.h"
 #include "detect-http.h"
@@ -134,7 +151,7 @@ static int HtpRequestBodySetupMultipart(htp_tx_data_t *d, HtpTxUserData *htud)
             zPRINT("BOUNDARY END: ");
 #endif
             if (boundary_len < HTP_BOUNDARY_MAX) {
-                htud->request_boundary = malloc(boundary_len);
+                htud->request_boundary = (uint8_t *)malloc(boundary_len);
                 if (htud->request_boundary == NULL) {
 					zLogError("Memory allocate failed");
                     return -1;
@@ -356,11 +373,11 @@ static void HtpRequestBodyReassemble(HtpTxUserData *htud,
     uint32_t buf_len = 0;
     HtpBodyChunk *cur = htud->request_body.first;
 	
-//#ifdef ZPRINT
+#ifdef ZPRINT
 	zLogDebug("-----------------test begin-----------------------");
 	HtpBodyPrint(&htud->request_body);
 	zLogDebug("-----------------test end-------------------------");	
-//#endif
+#endif
 
     for ( ; cur != NULL; cur = cur->next) {
         //zLogDebug("chunk %p", cur);
@@ -384,7 +401,7 @@ static void HtpRequestBodyReassemble(HtpTxUserData *htud,
 
             buf_len += tlen;
             //if ((pbuf = HTPRealloc(buf, buf_len - tlen, buf_len)) == NULL) {
-            if ((pbuf = realloc(buf,buf_len)) == NULL) {
+            if ((pbuf = (uint8_t *)realloc(buf,buf_len)) == NULL) {
 				zLogError("memory allocate failed!");
                 //HTPFree(buf, buf_len - tlen);
                 free(buf);
@@ -400,7 +417,7 @@ static void HtpRequestBodyReassemble(HtpTxUserData *htud,
 
             buf_len += cur->len;
             //if ((pbuf = HTPRealloc(buf, buf_len - cur->len, buf_len)) == NULL) {
-            if ((pbuf = realloc(buf, buf_len)) == NULL) {
+            if ((pbuf = (uint8_t *)realloc(buf, buf_len)) == NULL) {
                 //HTPFree(buf, buf_len - cur->len);
                 free(buf);
                 buf = NULL;
@@ -427,13 +444,14 @@ static int HTPCallbackRequestLine(htp_tx_t *tx)
 {
 	zEnter("Enter,htp_tx_t *tx:%p",tx);
 	
-#ifdef ZPRINT
+//#ifdef ZPRINT
 	if(tx->request_line){
 		zLogDebug("-----------------test begin-----------------------");
 		zPrintRawDataFp(stdout,bstr_ptr(tx->request_line), bstr_len(tx->request_line));
+		printf("\n");
 		zLogDebug("-----------------test end-------------------------");		
 	}
-#endif	
+//#endif	
 		
 	return HTP_OK;
 }
@@ -445,11 +463,12 @@ static int HTPCallbackRequestHeaderData(htp_tx_data_t *tx_data)
     if (tx_data->len == 0)
         return HTP_OK;
 
-#ifdef ZPRINT
+//#ifdef ZPRINT
 	zLogDebug("-----------------test begin-----------------------");
 	zPrintRawDataFp(stdout,tx_data->data, tx_data->len);
+	printf("\n");
 	zLogDebug("-----------------test end-------------------------");
-#endif	
+//#endif	
 
 	return HTP_OK;
 }
@@ -468,7 +487,7 @@ static int HtpRequestBodySetupBoundary(HtpTxUserData *htud,
     uint8_t eb_len = htud->request_boundary_len + 2;
     eb = (uint8_t *)malloc(eb_len);
     if (eb == NULL) {
-        goto error;
+        SCReturnInt(-1);
     }
     memset(eb, '-', eb_len);
     memcpy(eb + 2, htud->request_boundary, htud->request_boundary_len);
@@ -476,7 +495,8 @@ static int HtpRequestBodySetupBoundary(HtpTxUserData *htud,
     uint8_t ebe_len = htud->request_boundary_len + 4;
     ebe = (uint8_t *)malloc(ebe_len);
     if (ebe == NULL) {
-        goto error;
+		SAFE_FREE(eb);
+        SCReturnInt(-1);
     }
     memset(ebe, '-', ebe_len);
     memcpy(ebe + 2, htud->request_boundary, htud->request_boundary_len);
@@ -487,15 +507,6 @@ static int HtpRequestBodySetupBoundary(HtpTxUserData *htud,
     *expected_boundary_end_len = ebe_len;
 
     SCReturnInt(0);
-
-error:
-    if (eb != NULL) {
-        HTPFree(eb, eb_len);
-    }
-    if (ebe != NULL) {
-        HTPFree(ebe, ebe_len);
-    }
-    SCReturnInt(-1);
 }
 
 
@@ -561,18 +572,18 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
     int tx_progress = 0;
 	/*****************dt  begin**********************/
 
-//#ifdef ZPRINT
+#ifdef ZPRINT
     zLogDebug("CHUNK START");
     zPrintRawDataFp(stdout, chunks_buffer, chunks_buffer_len);
     zLogDebug("CHUNK END");
-//#endif
+#endif
 
     if (HtpRequestBodySetupBoundary(htud, &htud->request_expected_boundary, &htud->request_expected_boundary_len,
                 &htud->request_expected_boundary_end, &htud->request_expected_boundary_end_len) < 0) {
         goto end;
     }
 	
-//#ifdef ZPRINT
+#ifdef ZPRINT
     zLogDebug("htud->request_expected_boundary START");
 	zLogDebug("htud->request_expected_boundary_len is:%d",htud->request_expected_boundary_len);
     zPrintData(htud->request_expected_boundary, htud->request_expected_boundary_len);
@@ -583,7 +594,7 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
 	zLogDebug("htud->request_expected_boundary_end_len is:%d",htud->request_expected_boundary_end_len);
     zPrintData(htud->request_expected_boundary_end, htud->request_expected_boundary_end_len);
     zLogDebug("htud->request_expected_boundary_end END");
-//#endif
+#endif
 
     /* search for the header start, header end and form end */
     uint8_t *header_start = Bs2bmSearch(chunks_buffer, chunks_buffer_len,
@@ -636,11 +647,11 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
 
 			//*file_buffer = filedata;
 			//*file_buffer_len = filedata_len;
-//#ifdef ZPRINT
+#ifdef ZPRINT
             zLogDebug("@@@@@@@@@@@@@@FILEDATA (final chunk) START:@@@@@@@@@@@@@@");
             zPrintRawDataFp(stdout, filedata, filedata_len);
             zLogDebug("@@@@@@@@@@@@@@FILEDATA (final chunk) END:@@@@@@@@@@@@@@");
-//#endif
+#endif
             /*****************dt  begin**********************/
             /*if (!(htud->tsflags & HTP_DONTSTORE)) {
                 if (HTPFileClose(hstate, filedata, filedata_len, flags,
@@ -660,11 +671,11 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
             if (chunks_buffer_len > htud->request_expected_boundary_end_len) {
                 uint8_t *filedata = chunks_buffer;
                 uint32_t filedata_len = chunks_buffer_len - htud->request_expected_boundary_len;
-//#ifdef ZPRINT
+#ifdef ZPRINT
                 zLogDebug("@@@@@@@@@@@@@@FILEDATA (part) START:@@@@@@@@@@@@@@");
                 zPrintRawDataFp(stdout, filedata, filedata_len);
                 zLogDebug("@@@@@@@@@@@@@@FILEDATA (part) END:@@@@@@@@@@@@@@");
-//#endif
+#endif
 			/*****************dt  begin**********************/
 				//*file_buffer = filedata;
 				//*file_buffer_len = filedata_len;
@@ -745,11 +756,11 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
 
 			memcpy((void *)htud->request_filename,filename,filename_len);
 			
-//#ifdef ZPRINT
+#ifdef ZPRINT
 			zLogDebug("filename start:");
 			zPrintData((uint8_t *)htud->request_filename, strlen(htud->request_filename));
 			zLogDebug("filename end:");
-//#endif
+#endif
 
             SCLogDebug("we have a filename");
 
@@ -794,11 +805,11 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
 					goto end;
                 }
                 
-//#ifdef ZPRINT
+#ifdef ZPRINT
                 zLogDebug("@@@@@@@@@@@@@@FILEDATA START:@@@@@@@@@@@@@@");
                 zPrintRawDataFp(stdout, filedata, filedata_len);
                 zLogDebug("@@@@@@@@@@@@@@FILEDATA END:@@@@@@@@@@@@@@");
-//#endif
+#endif
 				/*****************dt  begin**********************/
 				//a complete req will come here 
 				//*file_buffer = filedata;
@@ -888,9 +899,11 @@ static int HtpRequestBodyHandleMultipart(HtpState *hstate, HtpTxUserData *htud,
                     filedata_len = header_next - filedata - 2;
                     SCLogDebug("filedata_len %u", filedata_len);
 					/*****************dt  begin**********************/
+#ifdef ZPRINT 					
   		    zLogDebug("@@@@@@@@@@@@@@FILEDATA START:@@@@@@@@@@@@@@ ");
   		    zPrintRawDataFp(stdout, filedata, filedata_len);
-  		    zLogDebug("@@@@@@@@@@@@@@FILEDATA END:    @@@@@@@@@@@@@@");			
+  		    zLogDebug("@@@@@@@@@@@@@@FILEDATA END:    @@@@@@@@@@@@@@");	
+#endif			
 					#if 0
                     result = HTPFileOpen(hstate, filename, filename_len,
                             filedata, filedata_len, hstate->transaction_cnt,
@@ -967,10 +980,10 @@ static int HtpRequestBodyHandlePOST(HtpState *hstate, HtpTxUserData *htud,
 {
 	zEnter("Enter");
 
-//#ifdef ZPRINT				
+#ifdef ZPRINT				
 	zLogDebug("@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
 	zPrintRawDataFp(stdout,data, data_len);	
-//#endif
+#endif
 
     //encrypt data here
 	zLogDebug("@@@@@@@@@@@@@@@@@ encrypt data here @@@@@@@@@@@@@@@@@");
@@ -998,10 +1011,10 @@ static int HtpRequestBodyHandlePUT(HtpState *hstate, HtpTxUserData *htud,
 	zEnter("Enter");
 
 	
-//#ifdef ZPRINT 			
+#ifdef ZPRINT 			
 	zLogDebug("@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
 	zPrintRawDataFp(stdout,data, data_len); 
-//#endif
+#endif
 
 	//encrypt data here
 	zLogDebug("@@@@@@@@@@@@@@@@@ encrypt data here @@@@@@@@@@@@@@@@@");
@@ -1080,7 +1093,6 @@ static int HTPCallbackRequestBodyData(htp_tx_data_t *d)
 	zEnter("Enter,htp_tx_data_t *d:%p",d);
     if (d->data == NULL || d->len == 0)
         return HTP_OK;
-	//zPrintRawDataFp(stdout, (uint8_t *)d->data, d->len);
 
 	HtpState *hstate = htp_connp_get_user_data(d->tx->connp);
     if (hstate == NULL) {
@@ -1091,17 +1103,17 @@ static int HTPCallbackRequestBodyData(htp_tx_data_t *d)
 	BUG_ON(hstate->hcBuffer_req == NULL);
 	BUG_ON(hstate->hcBuffer_req->data == NULL);	
 	
-//#ifdef ZPRINT
+#ifdef ZPRINT
 	zLogDebug("DATA START:");
-	zLogDebug("d->len is %"PRIu32,d->len);
+	zLogDebug("d->len is %zu",d->len);
 	zPrintRawDataFp(stdout, (uint8_t *)d->data, d->len);
 	zLogDebug("DATA END:");
-//#endif
+#endif
 
 	
 	HtpTxUserData *tx_ud = (HtpTxUserData *) htp_tx_get_user_data(d->tx);
     if (tx_ud == NULL) {
-        tx_ud = malloc(sizeof(HtpTxUserData));
+        tx_ud = (HtpTxUserData *)malloc(sizeof(HtpTxUserData));
         if (tx_ud == NULL)
 		{
 			zLogError("Memory allocate failed");
@@ -1254,11 +1266,11 @@ static int HTPCallbackRequestBodyData(htp_tx_data_t *d)
             if (chunks_buffer == NULL) {
                 goto end;
             }
-//#ifdef ZPRINT
+#ifdef ZPRINT
             zLogDebug("REASSCHUNK START:");
             zPrintRawDataFp(stdout, chunks_buffer, chunks_buffer_len);
             zLogDebug("REASSCHUNK END:");
-//#endif
+#endif
 
 			//uint8_t *file_buffer = NULL;
 	        //uint32_t file_buffer_len = 0;
@@ -1377,6 +1389,14 @@ static int HTPCallbackRequest(htp_tx_t *tx)
     //SCLogDebug("transaction_cnt %"PRIu64", list_size %"PRIu64,hstate->transaction_cnt, HTPStateGetTxCnt(hstate));
 
     SCLogDebug("HTTP request completed");
+//#ifdef ZPRINT	
+	if(tx->request_line){
+		zLogDebug("-----------------test begin-----------------------");
+		zPrintRawDataFp(stdout,bstr_ptr(tx->request_line), bstr_len(tx->request_line));
+		printf("\n");
+		zLogDebug("-----------------test end-------------------------");		
+	}
+//#endif
 
 
     HtpTxUserData *htud = (HtpTxUserData *)htp_tx_get_user_data(tx);
@@ -1401,13 +1421,14 @@ static int HTPCallbackResponseLine(htp_tx_t *tx)
 {
 	zEnter("Enter,htp_tx_t *tx:%p",tx);
 
-#ifdef ZPRINT
+//#ifdef ZPRINT
 	if(tx->response_line){
 		zLogDebug("-----------------test begin-----------------------");
 		zPrintRawDataFp(stdout,bstr_ptr(tx->response_line), bstr_len(tx->response_line));
+		printf("\n");
 		zLogDebug("-----------------test end-------------------------");		
 	}
-#endif
+//#endif
 	
 	return HTP_OK;
 }
@@ -1483,8 +1504,8 @@ int HtpResponseBodyHandle(HtpState *hstate, HtpTxUserData *htud,
     }
 #endif
     return 0;
-end:
-    return -1;
+//end:
+    //return -1;
 }
 
 static int HtpResponseBodySetupMultipart(htp_tx_data_t *d, HtpTxUserData *htud)
@@ -1505,7 +1526,7 @@ static int HtpResponseBodySetupMultipart(htp_tx_data_t *d, HtpTxUserData *htud)
             zPRINT("BOUNDARY END: ");
 #endif
             if (boundary_len < HTP_BOUNDARY_MAX) {
-                htud->response_boundary = malloc(boundary_len);
+                htud->response_boundary = (uint8_t *)malloc(boundary_len);
                 if (htud->response_boundary == NULL) {
 					zLogError("Memory allocate failed");
                     return -1;
@@ -1546,12 +1567,12 @@ static int HTPCallbackResponseBodyData(htp_tx_data_t *d)
         SCReturnInt(HTP_ERROR);
     }
 
-    SCLogDebug("New response body data available at %p -> %p -> %p, bodylen "
-               "%"PRIu32"", hstate, d, d->data, (uint32_t)d->len);
+    //SCLogDebug("New response body data available at %p -> %p -> %p, bodylen "
+               //"%"PRIu32"", hstate, d, d->data, (uint32_t)d->len);
 
     HtpTxUserData *tx_ud = (HtpTxUserData *) htp_tx_get_user_data(d->tx);
     if (tx_ud == NULL) {
-        tx_ud = malloc(sizeof(HtpTxUserData));
+        tx_ud = (HtpTxUserData *)malloc(sizeof(HtpTxUserData));
         if (unlikely(tx_ud == NULL)) {
 			zLogError("memory malloc failed!");
             SCReturnInt(HTP_OK);
@@ -1569,18 +1590,18 @@ static int HTPCallbackResponseBodyData(htp_tx_data_t *d)
         int r = HtpResponseBodySetupMultipart(d, tx_ud);
         if (r == 1) {
             tx_ud->response_body_type = HTP_BODY_RESPONSE_MULTIPART;
-//#ifdef ZPRINT
+#ifdef ZPRINT
             zLogDebug("BOUNDARY START: ");
             zPrintRawDataFp(stdout, tx_ud->response_boundary, tx_ud->response_boundary_len);
             zLogDebug("BOUNDARY END: ");
-//#endif			
+#endif			
         } else if (r == 0) {
             tx_ud->response_body_type = HTP_BODY_RESPONSE_NONE;
             zLogError("not multipart");
         }
     }
 
-    SCLogDebug("tx_ud->response_body.content_len_so_far %"PRIu64, tx_ud->response_body.content_len_so_far);
+    //SCLogDebug("tx_ud->response_body.content_len_so_far %"PRIu64, tx_ud->response_body.content_len_so_far);
     //SCLogDebug("hstate->cfg->response_body_limit %u", hstate->cfg->response_body_limit);
 
     /* within limits, add the body chunk to the state. */
@@ -1594,7 +1615,7 @@ static int HTPCallbackResponseBodyData(htp_tx_data_t *d)
         //len = hstate->cfg->response_body_limit - tx_ud->response_body.content_len_so_far;
         //BUG_ON(len > (uint32_t)d->len);
     //}
-    SCLogDebug("len %u", len);
+    //SCLogDebug("len %u", len);
 
     HtpBodyAppendChunk(tx_ud, &tx_ud->response_body, (uint8_t *)d->data, len);
 
@@ -1699,7 +1720,7 @@ static void HtpTxUserDataFree(HtpTxUserData *htud) {
 static void *HTPStateAlloc(void)
 {
 
-    HtpState *s = malloc(sizeof(HtpState));
+    HtpState *s = (HtpState *)malloc(sizeof(HtpState));
     if (s == NULL)
         goto error;
 
@@ -1717,8 +1738,12 @@ error:
 
 int DTInitHTTP()
 {
+	
 	if(NULL != g_cfg)
+	{
+		zLogDebug("NULL != g_cfg,already init.");
 		return 0;
+	}
 
 	g_cfg = htp_config_create();
 	if(NULL == g_cfg)
@@ -1744,6 +1769,7 @@ int DTInitHTTP()
 	
 	/* don't convert + to space by default */
 	htp_config_set_plusspace_decode(g_cfg, HTP_DECODER_URLENCODED, 0);	
+	zLogDebug("init ok!");
 	return 0;
 }
 
@@ -1795,7 +1821,7 @@ int DTRequestData(stSocketInput *stsi)
 		 }
 		 memset(hcb, 0x00, sizeof(HtpChunkBuffer));
 		 hcb->len = stsi->buf_len;
-		 hcb->data = malloc(stsi->buf_len);
+		 hcb->data = (uint8_t *)malloc(stsi->buf_len);
         if (hcb->data == NULL) {
 			SAFE_FREE(hcb);
             zLogFatal("memory allocate failed!");
@@ -1809,7 +1835,7 @@ int DTRequestData(stSocketInput *stsi)
 		uint8_t *buf = hstate->hcBuffer_req->data;
 	    uint8_t *pbuf = NULL;
 		uint32_t buf_len = hstate->hcBuffer_req->len;
-        if ((pbuf = realloc(buf,buf_len + stsi->buf_len)) == NULL) 
+        if ((pbuf = (uint8_t *)realloc(buf,buf_len + stsi->buf_len)) == NULL) 
 		{
             zLogFatal("memory allocate failed!");
 			return -1;
@@ -1826,21 +1852,48 @@ int DTRequestData(stSocketInput *stsi)
 	
 	htp_time_t ts = { zGetTimestamp(), 0 };
 
-	zLogDebug("-----------------test begin-----------------------");
-	zLogDebug("hstate->hcBuffer_req->data:%p,hstate->hcBuffer_req->len:%"PRIu32,hstate->hcBuffer_req->data,hstate->hcBuffer_req->len);
-	zPrintData(hstate->hcBuffer_req->data, hstate->hcBuffer_req->len);
-	zLogDebug("--------------------------------------------------");
-	zPrintRawDataFp(stdout,hstate->hcBuffer_req->data + (hstate->hcBuffer_req->len - stsi->buf_len) , stsi->buf_len);
-	zLogDebug("-----------------test end-------------------------");
+	//zLogDebug("-----------------test begin-----------------------");
+	//zLogDebug("hstate->hcBuffer_req->data:%p,hstate->hcBuffer_req->len:%"PRIu32,hstate->hcBuffer_req->data,hstate->hcBuffer_req->len);
+	//zPrintData(hstate->hcBuffer_req->data, hstate->hcBuffer_req->len);
+	//zLogDebug("--------------------------------------------------");
+	//zPrintRawDataFp(stdout,stsi->buf,stsi->buf_len);
+	//zLogDebug("-----------------test end-------------------------");
 
     /* pass the new data to the htp parser */
     r = htp_connp_req_data(hstate->connp, &ts, hstate->hcBuffer_req->data + (hstate->hcBuffer_req->len - stsi->buf_len) , stsi->buf_len);
+
+	switch(r) {
+		case HTP_STREAM_ERROR:
+
+			hstate->flags |= HTP_FLAG_STATE_ERROR;
+			hstate->flags &= ~HTP_FLAG_STATE_DATA;
+			hstate->flags &= ~HTP_FLAG_NEW_BODY_SET;
+			//zLogDebug("HTP_STREAM_ERROR");
+			break;
+		case HTP_STREAM_DATA:
+		case HTP_STREAM_DATA_OTHER:
+
+			hstate->flags |= HTP_FLAG_STATE_DATA;
+			//zLogDebug("HTP_STREAM_DATA or HTP_STREAM_DATA_OTHER");
+			break;
+		case HTP_STREAM_TUNNEL:
+			//zLogDebug("HTP_STREAM_TUNNEL");
+			break;
+		default:
+			hstate->flags &= ~HTP_FLAG_STATE_DATA;
+			hstate->flags &= ~HTP_FLAG_NEW_BODY_SET;
+	}
+
+//-----------------test -----------------------
+	stsi->send_sock(stsi->conn,stsi->buf,stsi->buf_len);
 
 	if(hstate->hcBuffer_req->is_ready_to_send == HTP_READY_TO_SEND)
 	{
 		zLogDebug("@@@@@@@@@@@@@@@ send it now @@@@@@@@@@@@@@@");
 		zLogDebug("hstate->hcBuffer_req->data:%p,hstate->hcBuffer_req->len:%"PRIu32,hstate->hcBuffer_req->data,hstate->hcBuffer_req->len);
-		zPrintData(hstate->hcBuffer_req->data, hstate->hcBuffer_req->len);
+		//zPrintData(hstate->hcBuffer_req->data, hstate->hcBuffer_req->len);
+
+		//stsi->send_sock(stsi->conn,stsi->buf,stsi->buf_len);
 		
 		hstate->hcBuffer_req->is_ready_to_send = 0;
 
@@ -1858,11 +1911,11 @@ int DTRequestData(stSocketInput *stsi)
 		SAFE_FREE(hstate->hcBuffer_req->data);
 		SAFE_FREE(hstate->hcBuffer_req);
 	}
-	else
-		zLogDebug("@@@@@@@@@@@@@@@ is not ready to send @@@@@@@@@@@@@@@");
+	//else
+		//zLogDebug("@@@@@@@@@@@@@@@ is not ready to send @@@@@@@@@@@@@@@");
 	
 
-	zLogDebug("htp_connp_req_data return value:%d",r);
+	//zLogDebug("htp_connp_req_data return value:%d",r);
 	return 0;
 }
 
@@ -1882,14 +1935,14 @@ int DTResponseData(stSocketInput *stsi)
 	if(hstate == NULL)
 	{
 		zLogError("Have no connp");
-		return -1;
+		goto error;
 	}
 	
 	htp_connp_t *connp = (htp_connp_t*)hstate->connp;
 	if (connp == NULL)
-	{
+	{ 
 		zLogError("Have no connp");
-		return -1;
+		goto error;
 	}
 
 	if(NULL == hstate->hcBuffer_res)
@@ -1898,7 +1951,7 @@ int DTResponseData(stSocketInput *stsi)
 		 if(hcb == NULL)
 		 {
 		 	zLogFatal("memory allocate failed!");
-			return -1;
+			goto error;
 		 }
 		 memset(hcb, 0x00, sizeof(HtpChunkBuffer));
 		 hcb->len = stsi->buf_len;
@@ -1906,7 +1959,7 @@ int DTResponseData(stSocketInput *stsi)
         if (hcb->data == NULL) {
 			SAFE_FREE(hcb);
             zLogFatal("memory allocate failed!");
-			return -1;
+			goto error;
         }
         memcpy(hcb->data, stsi->buf, stsi->buf_len);
 		hstate->hcBuffer_res = hcb;
@@ -1919,7 +1972,7 @@ int DTResponseData(stSocketInput *stsi)
         if ((pbuf = realloc(buf,buf_len + stsi->buf_len)) == NULL) 
 		{
             zLogFatal("memory allocate failed!");
-			return -1;
+			goto error;
         }
         buf = pbuf;
         memcpy(buf + buf_len, stsi->buf, stsi->buf_len);
@@ -1933,11 +1986,13 @@ int DTResponseData(stSocketInput *stsi)
 	htp_time_t ts = { zGetTimestamp(), 0 };
 	r = htp_connp_res_data(connp, &ts, hstate->hcBuffer_res->data + (hstate->hcBuffer_res->len - stsi->buf_len) , stsi->buf_len);
 
+	stsi->send_sock(stsi->conn,stsi->buf,stsi->buf_len);
+
 	if(hstate->hcBuffer_res->is_ready_to_send == HTP_READY_TO_SEND)
 	{
 		zLogDebug("@@@@@@@@@@@@@@@ send it now @@@@@@@@@@@@@@@");
 		zLogDebug("hstate->hcBuffer_res->data:%p,hstate->hcBuffer_res->len:%"PRIu32,hstate->hcBuffer_res->data,hstate->hcBuffer_res->len);
-		zPrintData(hstate->hcBuffer_res->data, hstate->hcBuffer_res->len);
+		//zPrintData(hstate->hcBuffer_res->data, hstate->hcBuffer_res->len);
 		
 		hstate->hcBuffer_res->is_ready_to_send = 0;
 
@@ -1955,11 +2010,15 @@ int DTResponseData(stSocketInput *stsi)
 		SAFE_FREE(hstate->hcBuffer_res->data);
 		SAFE_FREE(hstate->hcBuffer_res);
 	}
-	else
-		zLogDebug("@@@@@@@@@@@@@@@ is not ready to send @@@@@@@@@@@@@@@");
+	//else
+		//zLogDebug("@@@@@@@@@@@@@@@ is not ready to send @@@@@@@@@@@@@@@");
 	
-	zLogDebug("htp_connp_res_data return value:%d",r);
+	//zLogDebug("htp_connp_res_data return value:%d",r);
 	return 0;
+error:
+	stsi->send_sock(stsi->conn,stsi->buf,stsi->buf_len);
+	return -1;
+	
 }
 
 int DTFreeHTTPState(void *stsi)

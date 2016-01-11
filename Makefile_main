@@ -1,0 +1,23 @@
+###########################################
+#Makefile for simple programs
+###########################################
+INC=-I./ -I/usr/local/lib
+LIB=-lhtp -lpthread
+
+CC=g++
+CPPFLAGS=-g3 -rdynamic -Werror-implicit-function-declaration -Wall -DZSHOW_LOG -DDEBUG -DZSHOWENTER
+
+PRG=detect-http
+OBJ=socks5.o util.o log.o detect-http.o app-layer-htp-body.o util-file.o util-spm-bs2bm.o util-spm.o
+
+$(PRG):$(OBJ)
+	$(CC) $(INC) $(LIB) -o $@ $(OBJ)
+	
+.SUFFIXES: .c.o.cpp
+#.cpp.o:
+	#$(CC) $(CPPFLAGS) $(INC) -c $*.c -o $*.o
+
+.PRONY:clean
+clean:
+	@echo "Removing linked and compiled files......"
+	rm -f $(OBJ) $(PRG)

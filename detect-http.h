@@ -1,3 +1,20 @@
+/* Copyright (C) 2007-2010 Open Information Security Foundation
+ *
+ * You can copy, redistribute or modify this Program under the terms of
+ * the GNU General Public License version 2 as published by the Free
+ * Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * version 2 along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ */
+
 #ifndef __DETECT_HTTP_H__
 #define __DETECT_HTTP_H__
 
@@ -152,6 +169,8 @@ typedef struct HtpTxUserData_ {
 	uint8_t *request_expected_boundary_end;
     uint8_t  request_expected_boundary_end_len;
 
+//*****************NOTED BEGIN*****************************************************************************************
+	// if there is more than one file in a request,the follow value always save the last file's property
 	char request_filename[NAME_MAX];
 
 	uint64_t request_filesize;//the whole file size,not this chunk file size
@@ -189,6 +208,8 @@ typedef struct HtpTxUserData_ {
 	//uint64_t response_chunk;//this chunk number
 
 	int response_is_file_data_come;
+//*****************NOTED END*****************************************************************************************
+	
 	/*****************dt  end***********************/
 
     uint8_t tsflags;

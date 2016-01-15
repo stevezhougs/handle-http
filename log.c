@@ -42,7 +42,7 @@ int zLogInit()
 {
 #ifdef ZSHOW_LOG
         log_show = ZSHOW;
-		return 0;
+		return 1;
 #else
 	#ifdef ZWRITESHOW_LOG
         log_show = ZWRITESHOW;
@@ -50,9 +50,9 @@ int zLogInit()
 
 	fp = fopen(zLogPath,"a+");
 	if(NULL == fp)
-		return -1;
-	else
 		return 0;
+	else
+		return 1;
 #endif
 }
 void zLogShutdown()
@@ -96,17 +96,22 @@ int zLogMsg(LogLevel log_level,char *msg)
 	cw = snprintf(ch_output + cw, MAX_LOG_MSG_LEN - cw,"%s",temp);
 	if (cw < 0)
 		return -1;
-	
+
+	FILE *fd;
+	if(log_level >=LOG_ERROR)
+		fd = stderr;
+	else
+		fd = stdout;
 	switch(log_show)
 	{
 		case ZWRITE:
 			zPrintToStream(fp,ch_output);
 			break;
 		case ZSHOW:
-			zPrintToStream(stdout,ch_output);
+			zPrintToStream(fd,ch_output);
 			break;
 		case ZWRITESHOW:
-			zPrintToStream(stdout,ch_output);
+			zPrintToStream(fd,ch_output);
 			zPrintToStream(fp,ch_output);
 			break;
 		default:

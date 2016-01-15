@@ -72,18 +72,28 @@ enum {
 
 enum {
     HTP_BODY_RESPONSE_NONE = 0,
-    HTP_BODY_RESPONSE_MULTIPART, /* POST, MP */
+    HTP_BODY_RESPONSE_MULTIPART, /* RESPONSE, MP */
 };
 
+#define HTP_NOT_READY_TO_SEND       -1    /**< ready to send this buffer */
+#define HTP_READY_TO_SEND_PART       0    /**< ready to send a part of this buffer,noted:some data may be not parse */
+#define HTP_READY_TO_SEND_ALL        1    /**< ready to send this buffer */
 
-#define HTP_READY_TO_SEND       0x01    /**< ready to send this buffer */
+
 
 /*****************dt  begin**********************/
 /** Struct used to hold chunks of a whole request */
 struct HtpChunkBuffer_ {
     uint8_t *data;              /**< Pointer to the data of the chunk */
     uint32_t len; 				/**< Length of the chunk */
+
+	//if DTResponseData got two or more request(several transaction) at a time , the last transaction decide whether ready to send
 	int is_ready_to_send;
+
+	//filedata_unencrypted to save the unencrypted position
+	//for example after call HtpRequestBodyHandleMultipart,
+	//hcBuffer_req may have one half encrypted and another half unencrypted
+	uint8_t *filedata_unencrypted;
 };
 typedef struct HtpChunkBuffer_ HtpChunkBuffer;
 /*****************dt  end***********************/
@@ -135,10 +145,15 @@ typedef struct HtpBody_ {
 #define HTP_CONTENTTYPE_SET     0x01    /**< We have the content type */
 #define HTP_BOUNDARY_SET        0x02    /**< We have a boundary string */
 #define HTP_BOUNDARY_OPEN       0x04    /**< We have a boundary string */
-#define HTP_FILENAME_SET        0x08   /**< filename is registered in the flow */
+#define HTP_FILENAME_SET        0x08    /**< filename is registered in the flow */
 #define HTP_DONTSTORE           0x10    /**< not storing this file */
 
 #define HTP_FILEDATA_COME       0x01    /**< file data is come */
+
+#define URL_NOT_NEED_ENCRYPT    0x00    /**< this transaction not need file encrypt*/
+#define URL_NEED_ENCRYPT        0x01    /**< this transaction need file encrypt*/
+
+#define MD5_LEN 32
 
 /** Now the Body Chunks will be stored per transaction, at
   * the tx user data */
@@ -159,6 +174,10 @@ typedef struct HtpTxUserData_ {
     //AppLayerDecoderEvents *decoder_events;          /**< per tx events */
 
 	/*****************dt  begin**********************/
+	//judge the url whether need  encrypt
+	int is_need_encrypt_upload;
+	int is_need_encrypt_download;
+	
 	//request
     uint8_t *request_boundary;
     uint8_t  request_boundary_len;

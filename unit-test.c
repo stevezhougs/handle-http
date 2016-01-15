@@ -15,6 +15,7 @@
  * 02110-1301, USA.
  */
 
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -27,31 +28,97 @@ void test_file();
 void test_post();
 void test_put();
 void test_response_multipart();
-void test_post_multipart();
+void test_post_multipart_suricata_bug();
+void test_several_post_multipart();
+void test_several_post();
 
 int main(int argc,char *argv[])
 {
-	if(-1 == zLogInit())	
+	if(0 == zLogInit())	
 	{
 		printf("zLogInit failed!\n");
 		exit(1);
 	}
 	zLogDebug("Start");
 
-	test_post_multipart();
+	test_file();
 	
 	zLogDebug("Exit");
 	zLogShutdown();	
 	return 0;
 }
 
-#define FILE_1 "big1_Request.txt"
+#define FILE_1 "baiduyun req 4m.txt"
 #define FILE_2 "big2_Request.txt"
 #define FILE_OUTPUT "output.txt"
 
-#define BUFFER_SIZE 200
+#define BUFFER_SIZE 4096
 
 FILE * g_pFileOutput = NULL;
+void test_several_post()
+{
+    uint8_t http_req_buf1[] = 
+						"POST /filename1 HTTP/1.1\r\n"
+						"Host: www1.server.lan\r\n"
+						"Content-Length: 11\r\n"
+                        "\r\nFILECONTENT"
+                        "POST /";
+    uint32_t http_req_len1 = sizeof(http_req_buf1) - 1; /* minus the \0 */
+	
+    uint8_t http_req_buf2[] =  
+						"filename2 HTTP/1.1\r\n"
+						"Host: www2.server.lan\r\n"
+                         "Content-Length: 12\r\n"
+                         "\r\nFILECONTENT2";
+    uint32_t http_req_len2 = sizeof(http_req_buf2) - 1; /* minus the \0 */
+
+
+	
+
+	uint8_t http_res_buf1[] =
+		"HTTP/1.1 200 OK\r\n"
+		"Content-Type: text/html\r\n"
+		"Content-Length: 6\r\n"
+		"\r\n"
+		"abcdef";
+	uint32_t http_res_len1 = sizeof(http_res_buf1) - 1;
+
+	uint8_t http_res_buf2[] =
+		"HTTP/1.1 202 OK\r\n"
+		"Content-Type: text/html\r\n"
+		"Content-Length: 6\r\n"
+		"\r\n"
+		"123456";
+	uint32_t http_res_len2 = sizeof(http_res_buf2) - 1;
+
+	DTInitHTTP();
+	
+	stSocketInput ssInput;
+	memset(&ssInput,0,sizeof(ssInput));
+
+	ssInput.buf = http_req_buf1;
+	ssInput.buf_len = http_req_len1;
+	DTRequestData(&ssInput);
+	zLogDebug("After the http_req_buf1,ssInput.htp_state is:%p",ssInput.htp_state);
+
+	ssInput.buf = http_req_buf2;
+	ssInput.buf_len = http_req_len2;
+	DTRequestData(&ssInput);
+	zLogDebug("After the http_req_buf2,ssInput.htp_state is:%p",ssInput.htp_state);
+
+	ssInput.buf = http_res_buf1;
+	ssInput.buf_len = http_res_len1;
+	DTResponseData(&ssInput);
+	zLogDebug("After the http_res_buf1 res,ssInput.htp_state is:%p",ssInput.htp_state);
+
+	ssInput.buf = http_res_buf2;
+	ssInput.buf_len = http_res_len2;
+	DTResponseData(&ssInput);
+	zLogDebug("After the http_res_buf2 res,ssInput.htp_state is:%p",ssInput.htp_state);
+
+	DTFreeHTTPState(&ssInput);
+
+}
 
 void test_response_multipart()
 {
@@ -157,17 +224,16 @@ void test_file()
 	fclose (pFile);
 	fclose (g_pFileOutput);
 	g_pFileOutput = NULL;
-	//free (buffer);
 }
 
 void test_post()
 {
-    uint8_t http_req_buf1[] = "POST /filenam";
+    uint8_t http_req_buf1[] = 
+						"POST /filename HTTP/1.1\r\n"
+						"Host: www.server.lan\r\n";
     uint32_t http_req_len1 = sizeof(http_req_buf1) - 1; /* minus the \0 */
 	
-    uint8_t http_req_buf2[] = 
-					     "e HTTP/1.1\r\n"
-                         "Host: www.server.lan\r\n"
+    uint8_t http_req_buf2[] =          
                          "Content-Length: 11\r\n"
                          "\r\nFILECONTENT";
     uint32_t http_req_len2 = sizeof(http_req_buf2) - 1; /* minus the \0 */
@@ -298,13 +364,14 @@ void test_put()
 		"------WebKitFormBoundaryqPEJVlkco56jW0IM--\r\n"
 #endif
 
-void test_post_multipart()
+void test_post_multipart_suricata_bug()
 {
+	zLogDebug("Enter");
 	DTInitHTTP();
 	
 	stSocketInput ssInput;
 	memset(&ssInput,0,sizeof(ssInput));
-#if 0	                         
+ #if 0                        
     uint8_t httpbuf1_1_2m[] = 
 						 "POST /upload.cgi HTTP/1.1\r\n"
                          "Host: www.server.lan\r\n"
@@ -321,21 +388,15 @@ void test_post_multipart()
 			"Content-Disposition: form-data; name=\"uploadfile_1\"; filename=\"somepicture2.jpg\"\r\n"
                          "Content-Type: image/jpeg\r\n"
                          "\r\n"
-                         "FILECONTENT\r\n"
-       			 "-----------------------------277531038314945--\r\n";
+                         "FILE";
     uint32_t httplen1_1_2m = sizeof(httpbuf1_1_2m) - 1; /* minus the \0 */
 
 	ssInput.buf = httpbuf1_1_2m;
 	ssInput.buf_len = httplen1_1_2m;
 	DTRequestData(&ssInput);
-	zLogDebug("After the httpbuf1_1_2m,ssInput.htp_state is:%p",ssInput.htp_state);
 	
     uint8_t httpbuf2_1_2m[] = 
-                         "4945\r\n"
-			"Content-Disposition: form-data; name=\"uploadfile_1\"; filename=\"somepicture2.jpg\"\r\n"
-                         "Content-Type: image/jpeg\r\n"
-                         "\r\n"
-                         "FILECONTENT\r\n"
+                         "CONTENT\r\n"
        			 "-----------------------------277531038314945--\r\n";
 	uint32_t httplen2_1_2m = sizeof(httpbuf2_1_2m) - 1; /* minus the \0 */
 
@@ -343,8 +404,8 @@ void test_post_multipart()
 	ssInput.buf_len = httplen2_1_2m;
 	DTRequestData(&ssInput);
 	zLogDebug("After the httpbuf2_1_2m,ssInput.htp_state is:%p",ssInput.htp_state);
+		
 #endif
-
     uint8_t httpbuf1[] = "POST /upload.cgi HTTP/1.1\r\n"
                          "Host: www.server.lan\r\n"
                          "Content-Type: multipart/form-data; boundary=---------------------------277531038314945\r\n"
@@ -354,24 +415,46 @@ void test_post_multipart()
                          "Content-Disposition: form-data; name=\"uploadfile_0\"; filename=\"somepicture1.jpg\"\r\n"
                          "Content-Type: image/jpeg\r\n"
                          "\r\n"
-                         "fileconte";
+                         "filecontent\r\n"
+                         "-----------------------------277531038314945\r\nContent-Disposition: form-data; name=\"uploadfile_1\"; filename=\"somepicture2.jpg\"\r\n"
+                         "Content-Type: image/jpeg\r\n"
+                         "\r\n"
+                         "F";
     uint32_t httplen1 = sizeof(httpbuf1) - 1; /* minus the \0 */
 
 	ssInput.buf = httpbuf1;
 	ssInput.buf_len = httplen1;
 	DTRequestData(&ssInput);
-    uint8_t httpbuf2[] = "nt\r\n"
-                         "-----------------------------277531038314945\r\nContent-Disposition: form-data; name=\"uploadfile_1\"; filename=\"somepicture2.jpg\"\r\n"
-                         "Content-Type: image/jpeg\r\n"
-                         "\r\n"
-                         "FILECONTENT\r\n"
+    uint8_t httpbuf2[] = "ILECONTENT\r\n"
         "-----------------------------277531038314945--";
     uint32_t httplen2 = sizeof(httpbuf2) - 1; /* minus the \0 */
 	ssInput.buf = httpbuf2;
 	ssInput.buf_len = httplen2;
 	DTRequestData(&ssInput);
+	
 
+	uint8_t http_res_buf1[] =
+		"HTTP/1.1 200 OK\r\n"
+		"Content-Type: text/html\r\n"
+		"Content-Length: 6\r\n"
+		"\r\n"
+		"abcdef";
+	uint32_t http_res_len1 = sizeof(http_res_buf1) - 1;
+
+	ssInput.buf = http_res_buf1;
+	ssInput.buf_len = http_res_len1;
+	DTResponseData(&ssInput);
+
+	DTFreeHTTPState(&ssInput);
+
+}
+void test_several_post_multipart()
+{
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------
+		DTInitHTTP();
+		
+		stSocketInput ssInput;
+		memset(&ssInput,0,sizeof(ssInput));
 
 	/** \test first multipart part contains file but doesn't end in first chunk */
 
@@ -728,5 +811,4 @@ void test_post_multipart()
 error:
 		printf("error!\n");
 		return;
-
 }

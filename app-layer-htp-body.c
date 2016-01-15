@@ -178,8 +178,8 @@ void HtpBodyFree(HtpBody *body)
     if (body->first == NULL)
         return;
 
-    zLogDebug("Removing chunks of Body %p; data %p, len %"PRIu32, body,
-            body->last->data, (uint32_t)body->last->len);
+    //zLogDebug("Removing chunks of Body %p; data %p, len %"PRIu32, body,
+            //body->last->data, (uint32_t)body->last->len);
 
     HtpBodyChunk *cur = NULL;
     HtpBodyChunk *prev = NULL;

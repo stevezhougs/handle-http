@@ -28,9 +28,9 @@ typedef struct stSocketInput_
 {
 	uint8_t *buf;
 	uint32_t buf_len;
-	int conn;
+	int fd;
 	void *htp_state;
-	int (*send_sock)(int, const char *, uint32_t);
+	int (*send_sock)(int, uint8_t *, uint32_t);
 }stSocketInput;
 
 /**

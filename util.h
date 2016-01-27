@@ -112,6 +112,14 @@ static inline int ConvertString2Uint64(uint8_t *s, size_t len,uint64_t *d)
     return 1;
 }
 
+/* No SIMD support, fall back to plain memcmp and a home grown lowercase one */
+
+/* wrapper around memcmp to match the retvals of the SIMD implementations */
+#define SCMemcmp(a,b,c) ({ \
+    memcmp((a), (b), (c)) ? 1 : 0; \
+})
+
+
 typedef struct zEnumCharMap_ {
     char *enum_name;
     int enum_value;

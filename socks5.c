@@ -1,3 +1,11 @@
+/**
+*
+*thanks to isayme
+*Email : isaymeorg@gmail.com
+*Blog  : www.isayme.org 
+*https://github.com/isayme/socks5
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -25,9 +33,17 @@
 /*****************dt  begin**********************/
 #include "log.h"
 #include "handle-http-data.h"
+#include "util-hash.h"
+//#include <glib.h>
+/*
+#include <stddef.h>
+#define container_of(ptr, type, member) ({	    \
+	const typeof( ((type *)0)->member ) *__mptr = (ptr);    \
+	(type *)( (char *)__mptr - offsetof(type,member) );})
+*/
 /*****************dt  end**********************/
 
-#define SAFE_FREE(x) do { if ((x) != NULL) {free(x); x=NULL;} } while(0)
+//#define SAFE_FREE(x) do { if ((x) != NULL) {free(x); x=NULL;} } while(0)
 
 static socks5_cfg_t g_cfg = {0};
 struct ev_loop *g_loop = NULL;
@@ -48,18 +64,97 @@ static void read_cb_client(struct ev_loop *loop, struct ev_io *watcher, int reve
 static void read_cb_remote(struct ev_loop *loop, struct ev_io *watcher, int revents);
 
 /*****************dt  begin**********************/
+#if 0
 struct my_io{
    ev_io *c_io;
    ev_io *s_io;
    uint64_t number;
+   int count_free;
    stSocketInput *ssInput;
    struct my_io *_next;
 };
 struct my_io g_my_io;
 
 uint64_t number_total = 0;
-/*****************dt  end***********************/
+#endif
 
+//HashTable
+HashTable *g_ht_io = NULL;
+struct st_io
+{
+   ev_io *c_io;//client
+   ev_io *s_io;//server
+   int count_free;//when count_free == 0,free this st_io
+   stSocketInput *ssInput;
+};
+
+uint32_t IOHashTableHash(HashTable *ht, void *data, uint16_t datalen) 
+{
+	uint8_t *d;
+	if(1 == datalen)
+	{
+		d = (uint8_t *)data;
+	}	
+	else
+	{
+		struct st_io *stio = (struct st_io *)data;
+		d = (uint8_t *)stio->s_io;
+	}
+
+	uint32_t hash = (uint32_t)((uint64_t)d % ht->array_size);
+	//hash %= ht->array_size;
+	return hash;
+}
+
+
+char IOHashTableCompare(void *data1, uint16_t len1, void *data2, uint16_t len2) 
+{
+	zEnter("Enter");	
+    if (len1 == 0 || len2 == 0)
+        return 0;
+
+    struct st_io *t_io = (struct st_io *)data1;
+    ev_io *c_io = (ev_io *)data2;
+	if(c_io == t_io->c_io || c_io == t_io->s_io)
+	    return 1;
+
+	return 0;
+}
+
+static void IOHashTableFree(void *p)
+{
+    zEnter("Enter");
+
+	struct st_io *io = (struct st_io *)p;
+	if(io == NULL)return;	
+	DTFreeHTTPState(io->ssInput);
+	SAFE_FREE(io->ssInput);
+	SAFE_FREE(io);	
+}
+
+static struct st_io* get_new_io()
+{
+	struct st_io *t_io = (struct st_io*)calloc(1,sizeof(struct st_io));
+	if(NULL == t_io)
+	{
+		zLogDebug("t_io memory allocate failed!");
+		return NULL;
+	}
+	stSocketInput *ssInput = (stSocketInput *)calloc(1,sizeof(stSocketInput));
+	if(NULL == ssInput)
+	{
+		zLogDebug("ssInput memory allocate failed!");
+		SAFE_FREE(t_io);
+		return NULL;
+	}
+	t_io->ssInput = ssInput;
+	t_io->count_free = 2;
+	return t_io;
+}
+
+static FILE* g_fp = NULL;
+
+/*****************dt  end***********************/
 
 int main(int argc, char **argv) {
     if (-1 == check_para(argc, argv)) {
@@ -80,12 +175,24 @@ int main(int argc, char **argv) {
 		zLogShutdown();
 		exit(1);
 	}	
+
+	g_fp = fopen("request.log","a+");
+	if(NULL == g_fp)
+	{
+		printf("open request.log failed\n");
+		exit(1);
+	}
 	/*****************dt  end***********************/
 
     signal_init();
 
     zLogInfo("socks5 starting, port: %d\n", g_cfg.port);
 
+	//HashTable
+	g_ht_io = HashTableInit(65536, IOHashTableHash, IOHashTableCompare, IOHashTableFree);
+	BUG_ON(g_ht_io == NULL);
+
+#if 0
 	memset(&g_my_io,0,sizeof(struct my_io));
 	stSocketInput *ssInput = (stSocketInput *)malloc(sizeof(stSocketInput));
 	if(NULL == ssInput)
@@ -95,7 +202,8 @@ int main(int argc, char **argv) {
 	}
 	memset(ssInput,0,sizeof(stSocketInput));
 	g_my_io.ssInput = ssInput;
-		
+#endif
+
     g_cfg.fd = socks5_srv_init(g_cfg.port, 10);
     if (-1 == g_cfg.fd) {
         zLogError("socks server init error");
@@ -431,7 +539,7 @@ _err:
 
 
 /*****************dt  begin**********************/
-
+#if 0
 static struct my_io * get_insert_position()
 {
 	if(g_my_io.c_io == NULL && g_my_io.s_io)
@@ -458,6 +566,7 @@ static struct my_io * get_insert_position()
 	memset(ssInput,0,sizeof(stSocketInput));
 	t_my_io->ssInput = ssInput;
 	temp->_next = t_my_io;
+	t_my_io->count_free = 2;
 	//printf("get_insert_position %p ok\n",t_my_io);
 	return t_my_io;
 }
@@ -504,7 +613,7 @@ uint64_t get_number_total()
 	number_total = (number_total < 999999999) ? number_total : 0;
 	return number_total++;
 }
-
+#endif
 /*****************dt  end***********************/
 
 static void accept_cb(struct ev_loop *loop, struct ev_io *watcher, int revents) {
@@ -546,20 +655,52 @@ static void accept_cb(struct ev_loop *loop, struct ev_io *watcher, int revents) 
     }
 
     w_client->data = w_serv;
+	w_serv->data = w_client;
 	/*****************dt  begin**********************/
+#if 0	
 	struct my_io *insert_io = get_insert_position();
 	if(NULL != insert_io){
 		insert_io->c_io = w_client;
 		insert_io->s_io = w_serv;
 		insert_io->number = get_number_total();
 	}
-	/*****************dt  end***********************/
-    ev_io_init(w_client, read_cb_client, client_fd, EV_READ);
-    ev_io_start(loop, w_client);
+#endif
 
-    w_serv->data = w_client;	
-    ev_io_init(w_serv, read_cb_remote, remote_fd, EV_READ);
-    ev_io_start(loop, w_serv);
+	struct st_io *new_io = 	get_new_io();
+	if(NULL == new_io)
+	{
+        zLogError("memory allocate error.");
+		close(remote_fd);
+        close(client_fd);
+        free(w_client);
+        free(w_serv);
+        return;
+	}
+	new_io->c_io = w_client;
+	new_io->s_io = w_serv;		
+
+	if(-1 == HashTableAdd(g_ht_io,new_io,sizeof(struct st_io)))
+	{
+        zLogError("HashTableAdd error.");
+		close(remote_fd);
+        close(client_fd);
+        free(w_client);
+        free(w_serv);
+		IOHashTableFree(new_io);
+        return;		
+	}
+	/*****************dt  end***********************/
+    ev_io_init(new_io->c_io, read_cb_client, client_fd, EV_READ);
+    ev_io_start(loop, new_io->c_io);
+
+	//zLogDebug("new_io->c_io is %p,it is address is %p",new_io->c_io,&new_io->c_io);
+
+    	
+    ev_io_init(new_io->s_io, read_cb_remote, remote_fd, EV_READ);
+    ev_io_start(loop, new_io->s_io);
+	
+	//zLogDebug("new_io->s_io is %p,it is address is %p",new_io->s_io,&new_io->s_io);
+
 
     return;
 }
@@ -577,33 +718,40 @@ static int send_sock(int sock, uint8_t *buffer, uint32_t size)
 }
 
 
-char * GetRemoteAddr( int nSocket, char *pAddr )
+int GetRemoteAddr( int nSocket, char *p_addr,char *p_port )
 {
     struct sockaddr_in addr;
     unsigned int nAddrLen = sizeof( addr );
 
     if ( getpeername( nSocket,(struct sockaddr * ) &addr,&nAddrLen ) < 0 )
     {
-        *pAddr = 0;
+        return 0;
     }
     else
     {
-        strcpy( pAddr,inet_ntoa( addr.sin_addr ) );
+        strcpy( p_addr,inet_ntoa(addr.sin_addr));
+		sprintf(p_port, "%d", ntohs(addr.sin_port));	
+	    return 1;
     }
-    return pAddr;
 }
-
 
 static void read_cb_client(struct ev_loop *loop, struct ev_io *watcher, int revents)
 {
-	//zLogDebug("Enter");
-	struct my_io *t_my_io = find_my_io(watcher);
+	zEnter("Enter");
+	//watcher is a value,not the address of struct st_io.c_io,so can't use container_of
+	//zLogDebug("watcher is %p,it is address is %p",watcher,&watcher);
+	//struct ev_io *ori_watcher = container_of(&watcher->data, struct ev_io, data);
+	//zLogDebug("ori_watcher is %p,it is address is %p",ori_watcher,&ori_watcher);
+
+	//zLogDebug("watcher->data is %p",watcher->data);
+
+	struct st_io *t_io = HashTableLookup(g_ht_io, watcher->data, 1);
+	BUG_ON(t_io == NULL);
 	
-	//char buf[32] = "";
-	//GetRemoteAddr(((struct ev_io *)watcher->data)->fd ,buf);
-	//zLogDebug("ip is %s",buf);
-	
-	//printf("t_my_io is %p,t_my_io->ssInput is %p,t_my_io->number is %d,t_my_io->_next is %p\n",t_my_io,t_my_io->ssInput,t_my_io->number,t_my_io->_next);
+	char addr[128] = "";
+	char port[128] = "";
+	GetRemoteAddr(watcher->fd ,addr,port);
+
     char buffer[BUFFER_SIZE];
     ssize_t read;
 
@@ -617,33 +765,37 @@ static void read_cb_client(struct ev_loop *loop, struct ev_io *watcher, int reve
         zLogError("read error [%d].", errno);
 
         if (104 == errno) {
-            zLogDebug("close %d:%d.", watcher->fd, ((struct ev_io *)watcher->data)->fd);
+            zLogDebug("close %s:%s.", addr, port);
             ev_io_stop(loop, watcher);
             ev_io_stop(loop, watcher->data);
             close(watcher->fd);
             close(((struct ev_io *)watcher->data)->fd);
             free(watcher->data);
             free(watcher);
-			DTFreeHTTPState(t_my_io->ssInput);
-			free_my_io(t_my_io);
-            return;
+			if(--t_io->count_free == 0)
+				HashTableRemove(g_ht_io, t_io, sizeof(struct st_io));
+			return;
         }
     } else if (0 == read) {
-        zLogDebug("close %d:%d.", watcher->fd, ((struct ev_io *)watcher->data)->fd);
+        zLogDebug("close %s:%s.", addr, port);
         ev_io_stop(loop, watcher);
         ev_io_stop(loop, watcher->data);
         close(watcher->fd);
         close(((struct ev_io *)watcher->data)->fd);
         free(watcher->data);
         free(watcher);
-		DTFreeHTTPState(t_my_io->ssInput);
-		free_my_io(t_my_io);
+		if(--t_io->count_free == 0)
+			HashTableRemove(g_ht_io, t_io, sizeof(struct st_io));
+
     } else {
-    	t_my_io->ssInput->buf = (uint8_t *)buffer;
-		t_my_io->ssInput->buf_len = (uint32_t)read;
-		t_my_io->ssInput->fd = ((struct ev_io *)watcher->data)->fd;
-		t_my_io->ssInput->send_sock = send_sock;
-		DTRequestData(t_my_io->ssInput);
+    	t_io->ssInput->buf = (uint8_t *)buffer;
+		t_io->ssInput->buf_len = (uint32_t)read;
+		t_io->ssInput->fd = ((struct ev_io *)watcher->data)->fd;
+		t_io->ssInput->send_sock = send_sock;
+		
+		fwrite (buffer , read, 1 , g_fp);
+		
+		DTRequestData(t_io->ssInput);
         //send(((struct ev_io *)watcher->data)->fd, buffer, read, 0);
     }
 
@@ -652,12 +804,22 @@ static void read_cb_client(struct ev_loop *loop, struct ev_io *watcher, int reve
 }
 static void read_cb_remote(struct ev_loop *loop, struct ev_io *watcher, int revents) 
 {
-	//zLogDebug("Enter");
+	zEnter("Enter");
+	//watcher is a value,not the address of struct st_io.c_io,so can't use container_of
+	//struct st_io *ori_io = container_of(&watcher, struct st_io, s_io);
 
-	struct my_io *t_my_io = find_my_io(watcher);
+	//zLogDebug("watcher is %p,it is address is %p",watcher,&watcher);
+	//struct ev_io *ori_watcher = container_of(&watcher->data, struct ev_io, data);
+	//zLogDebug("ori_watcher is %p,it is address is %p",ori_watcher,&ori_watcher);
+	//zLogDebug("watcher is %p",watcher);
 
-	//char buf[32] = "";
-	//GetRemoteAddr(((struct ev_io *)watcher->data)->fd ,buf);
+	struct st_io *t_io = HashTableLookup(g_ht_io, watcher, 1);
+
+	BUG_ON(t_io == NULL);	
+
+	char addr[128] = "";
+	char port[128] = "";
+	GetRemoteAddr(watcher->fd ,addr,port);
 	//zLogDebug("ip is %s",buf);
 	
 	char buffer[BUFFER_SIZE];
@@ -673,33 +835,34 @@ static void read_cb_remote(struct ev_loop *loop, struct ev_io *watcher, int reve
         zLogError("read error [%d].", errno);
 
         if (104 == errno) {
-            zLogDebug("close %d:%d.", watcher->fd, ((struct ev_io *)watcher->data)->fd);
+            zLogDebug("close %s:%s.", addr, port);
             ev_io_stop(loop, watcher);
             ev_io_stop(loop, watcher->data);
             close(watcher->fd);
             close(((struct ev_io *)watcher->data)->fd);
             free(watcher->data);
             free(watcher);
-			DTFreeHTTPState(t_my_io->ssInput);
-			free_my_io(t_my_io);
+			if(--t_io->count_free == 0)
+				HashTableRemove(g_ht_io, t_io, sizeof(struct st_io));
             return;
         }
     } else if (0 == read) {
-        zLogDebug("close %d:%d.", watcher->fd, ((struct ev_io *)watcher->data)->fd);
+        zLogDebug("close %s:%s.", addr, port);
         ev_io_stop(loop, watcher);
         ev_io_stop(loop, watcher->data);
         close(watcher->fd);
         close(((struct ev_io *)watcher->data)->fd);
         free(watcher->data);
         free(watcher);
-		DTFreeHTTPState(t_my_io->ssInput);
-		free_my_io(t_my_io);
+		if(--t_io->count_free == 0)
+			HashTableRemove(g_ht_io, t_io, sizeof(struct st_io));
+
     } else {
-    	t_my_io->ssInput->buf = (uint8_t *)buffer;
-		t_my_io->ssInput->buf_len = (uint32_t)read;
-		t_my_io->ssInput->fd = ((struct ev_io *)watcher->data)->fd;
-		t_my_io->ssInput->send_sock = send_sock;
-		DTResponseData(t_my_io->ssInput);
+    	t_io->ssInput->buf = (uint8_t *)buffer;
+		t_io->ssInput->buf_len = (uint32_t)read;
+		t_io->ssInput->fd = ((struct ev_io *)watcher->data)->fd;
+		t_io->ssInput->send_sock = send_sock;
+		DTResponseData(t_io->ssInput);
         //send(((struct ev_io *)watcher->data)->fd, buffer, read, 0);
     }
 

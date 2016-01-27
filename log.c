@@ -165,7 +165,7 @@ int zLogMsg(LogLevel log_level,char *msg)
 
 inline FILE * zGetLogFp()
 {
-	if(NULL == fp)
-		fp = fopen(zLogPath,"a+");
+	//if(NULL == fp)
+		//fp = fopen(zLogPath,"a+");
     return fp;
 }

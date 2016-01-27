@@ -34,6 +34,9 @@ void zGetLocalTimeEx(char tt[])
 
 void zPrintRawDataFp(FILE *fp, uint8_t *buf, uint32_t buflen)
 {
+	if(NULL == fp)
+		fp = stdout;
+
     int ch = 0;
     uint32_t u = 0;
 

@@ -1,3 +1,11 @@
+/**
+*
+*thanks to isayme
+*Email : isaymeorg@gmail.com
+*Blog  : www.isayme.org 
+*https://github.com/isayme/socks5
+*/
+
 #ifndef _SOCKS5_H
 #define _SOCKS5_H
 

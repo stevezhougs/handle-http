@@ -585,9 +585,9 @@ static int CheckRequestUploadEncryption(htp_tx_t *tx,HtpState *hstate,HtpTxUserD
 	uint8_t *url_partseq = Bs2bmSearch((uint8_t *)bstr_ptr(tx_ud->request_uri_normalized), bstr_len(tx_ud->request_uri_normalized),
 									(uint8_t *)BAIDU_YUN_URL_PARTSEQ_UPLOAD, strlen(BAIDU_YUN_URL_PARTSEQ_UPLOAD));
 	if(NULL == url_partseq){
-		zLogError("can not find partseq,request_uri_normalized begin-----");
+		zLogWarn("can not find partseq,request_uri_normalized begin-----");
 		zPrintRawDataFp(zGetLogFp(), (uint8_t *)bstr_ptr(tx_ud->request_uri_normalized), bstr_len(tx_ud->request_uri_normalized));
-		zLogError("can not find partseq,request_uri_normalized end-----");				
+		zLogWarn("can not find partseq,request_uri_normalized end-----");				
 		return 0;
 	}
 	int i = 0;
@@ -602,18 +602,18 @@ static int CheckRequestUploadEncryption(htp_tx_t *tx,HtpState *hstate,HtpTxUserD
 	if( (tmp + i - (uint8_t *)bstr_ptr(tx_ud->request_uri_normalized) > bstr_len(tx_ud->request_uri_normalized))||
 		i == 0)
 	{
-		zLogError("can not partseq number,request_uri_normalized begin-----");
+		zLogWarn("can not partseq number,request_uri_normalized begin-----");
 		zPrintRawDataFp(zGetLogFp(), (uint8_t *)bstr_ptr(tx_ud->request_uri_normalized), bstr_len(tx_ud->request_uri_normalized));
-		zLogError("can not partseq number,request_uri_normalized end-----");				
+		zLogWarn("can not partseq number,request_uri_normalized end-----");				
 		return 0;
 	}
 		
 	uint64_t val = 0;
 	int ret = ConvertString2Uint64(tmp,i,&val);
 	if(0 == ret){
-		zLogError("can not find  partseq value,request_uri_normalized begin-----");
+		zLogWarn("can not find  partseq value,request_uri_normalized begin-----");
 		zPrintRawDataFp(zGetLogFp(), (uint8_t *)bstr_ptr(tx_ud->request_uri_normalized), bstr_len(tx_ud->request_uri_normalized));
-		zLogError("can not find  partseq value,request_uri_normalized end-----");				
+		zLogWarn("can not find  partseq value,request_uri_normalized end-----");				
 		return 0;
 	}
 	zLogDebug("partseq is %"PRIu64,val);
@@ -2015,34 +2015,35 @@ static int HTPCallbackResponseBodyData(htp_tx_data_t *d)
         if (r == 1)
 		{
             tx_ud->response_body_type = HTP_BODY_RESPONSE_MULTIPART;
-//#ifdef ZPRINT
+#ifdef ZPRINT
             zLogDebug("BOUNDARY START: ");
             zPrintRawDataFp(stdout, tx_ud->response_boundary, tx_ud->response_boundary_len);
             zLogDebug("BOUNDARY END: ");
-//#endif			
+#endif			
         } 
 		else if (r == 0) 
 		{
-            tx_ud->response_body_type = HTP_BODY_RESPONSE_NONE;
-			if(tx_ud->is_need_encrypt_download == URL_NEED_ENCRYPT &&
-				d->tx->response_status_number == 200)
-			{
-				zLogDebug("@@@@@@@@@@@@@@ Encrypt data here @@@@@@@@@@@@@");
-				uint8_t * td = (uint8_t *)d->data;
-				int i;
-				for(i = 0;i < len;++i)
-				{
-					E_E_E;
-				}
-#ifdef ZPRINT			
-		        zLogDebug("response encrypted data begin: ");
-		        zPrintRawDataFp(stdout, d->data, d->len);
-	    	    zLogDebug("response encrypted data  end: ");
-				test_log = 1;
-#endif			
-			}	
+            tx_ud->response_body_type = HTP_BODY_RESPONSE_NONE;	
         }
     }
+
+	if(tx_ud->is_need_encrypt_download == URL_NEED_ENCRYPT &&
+		d->tx->response_status_number == 200)
+	{
+		//zLogDebug("@@@@@@@@@@@@@@ Encrypt data here @@@@@@@@@@@@@");
+		uint8_t * td = (uint8_t *)d->data;
+		int i;
+		for(i = 0;i < len;++i)
+		{
+			E_E_E;
+		}
+#ifdef ZPRINT			
+		zLogDebug("response encrypted data begin: ");
+		zPrintRawDataFp(stdout, d->data, d->len);
+		zLogDebug("response encrypted data	end: ");
+		test_log = 1;
+#endif			
+	}
 
     HtpBodyAppendChunk(tx_ud, &tx_ud->response_body, (uint8_t *)d->data, len);
 
@@ -2348,10 +2349,12 @@ int DTRequestData(stSocketInput *stsi)
 			}
 	        memcpy(hcb->data, hstate->hcBuffer_req->filedata_unencrypted, len);
 
+#ifdef ZPRINT
 			zLogDebug("@@@@@@@@@@@@@@@ send it now begin@@@@@@@@@@@@@@@");
 			zPrintData(hstate->hcBuffer_req->data,hstate->hcBuffer_req->filedata_unencrypted - hstate->hcBuffer_req->data);
 			zLogDebug("@@@@@@@@@@@@@@@ send it now end@@@@@@@@@@@@@@@");
-			
+#endif
+
 			if(stsi->send_sock)
 				stsi->send_sock(stsi->fd,hstate->hcBuffer_req->data,hstate->hcBuffer_req->filedata_unencrypted - hstate->hcBuffer_req->data);	
 			SAFE_FREE(hstate->hcBuffer_req->data);
@@ -2362,10 +2365,13 @@ int DTRequestData(stSocketInput *stsi)
 		}
 		else
 		{
+		
+#ifdef ZPRINT		
 			zLogDebug("@@@@@@@@@@@@@@@ send it now begin@@@@@@@@@@@@@@@");
 			zPrintData(hstate->hcBuffer_req->data,hstate->hcBuffer_req->len);
 			zLogDebug("@@@@@@@@@@@@@@@ send it now begin@@@@@@@@@@@@@@@");
-			
+#endif
+
 			if(stsi->send_sock)
 				stsi->send_sock(stsi->fd,hstate->hcBuffer_req->data,hstate->hcBuffer_req->len);
 		
@@ -2375,9 +2381,11 @@ int DTRequestData(stSocketInput *stsi)
 	}
 	else
 	{
+#ifdef ZPRINT	
 		zLogDebug("@@@@@@@@@@@@@@@ is not ready to send begin @@@@@@@@@@@@@@@");
 		zPrintData(stsi->buf, stsi->buf_len);
 		zLogDebug("@@@@@@@@@@@@@@@ is not ready to send end @@@@@@@@@@@@@@@");		
+#endif		
 	}
 	
 	//zLogDebug("htp_connp_req_data return value:%d",r);

@@ -23,7 +23,8 @@ extern "C" {
 #endif
 
 #include "util.h"
-#include <time.h>
+#include <sys/time.h>
+
 
 typedef enum zlog_show{ ZWRITE, ZSHOW, ZWRITESHOW }zlog_show;
 
@@ -44,6 +45,8 @@ typedef enum {
 #define LOG_MSG_LEN MAX_LOG_MSG_LEN - 8 // noted:zEnumCharMap log_level_map.enum_name  length is 8
 #define zLog(x,...) do {                     \
                 time_t t = time(0);         \
+                struct timeval ts;          \
+                memset(&ts, 0x00, sizeof(struct timeval)); \
                 char tt[32] = {0};           \
                 strftime(tt, sizeof(tt), "%Y-%m-%d %X",localtime(&t) );\
                 char _sc_log_msg[LOG_MSG_LEN] = "";\
@@ -52,11 +55,15 @@ typedef enum {
                 temp  += n;\
                 n = snprintf(temp,sizeof(tt),tt);\
                 temp  += n;\
+                gettimeofday(&ts, NULL);  \
+                n = snprintf(temp,LOG_MSG_LEN - (temp - _sc_log_msg),".%06u",(uint32_t) ts.tv_usec);\
+                temp  += n;\
                 n = snprintf(temp,LOG_MSG_LEN - (temp - _sc_log_msg)," %s:%d (%s) -- ",__FILE__,__LINE__,__FUNCTION__);\
                 temp  += n;\
                 snprintf(temp,LOG_MSG_LEN - (temp - _sc_log_msg),__VA_ARGS__);\
                 zLogMsg(x,_sc_log_msg);\
                 } while(0)
+
 
 #ifdef ZPRINT
 #define zPRINT(...) zLog(LOG_DEBUG,__VA_ARGS__)

@@ -75,9 +75,9 @@ enum {
     HTP_BODY_RESPONSE_MULTIPART, /* RESPONSE, MP */
 };
 
-#define HTP_NOT_READY_TO_SEND       -1    /**< ready to send this buffer */
-#define HTP_READY_TO_SEND_PART       0    /**< ready to send a part of this buffer,noted:some data may be not parse */
-#define HTP_READY_TO_SEND_ALL        1    /**< ready to send this buffer */
+#define HTP_NOT_READY_TO_SEND        0    /**< ready to send this buffer */
+#define HTP_READY_TO_SEND_PART       1    /**< ready to send a part of this buffer,noted:some data may be not parse */
+#define HTP_READY_TO_SEND_ALL        2    /**< ready to send this buffer */
 
 
 
